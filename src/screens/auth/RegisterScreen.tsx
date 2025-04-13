@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { TextInput, Button, Text } from 'react-native-paper';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../contexts/AuthContext';
 import { theme } from '../../constants/theme';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../navigation/types';
@@ -43,8 +43,7 @@ const RegisterScreen = ({ navigation }: Props) => {
     setError(null);
 
     try {
-      const { error } = await signUp(email, password, username);
-      if (error) throw error;
+      await signUp(email, password, username);
       // Registration successful, the user will be automatically logged in via the Auth listener
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during registration');

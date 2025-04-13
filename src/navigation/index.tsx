@@ -2,8 +2,15 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { RootStackParamList, AuthStackParamList, MainTabParamList, ChatStackParamList, ProfileStackParamList } from './types';
-import { useAuth } from '../hooks/useAuth';
+import { 
+  RootStackParamList, 
+  AuthStackParamList, 
+  MainTabParamList, 
+  ChatStackParamList, 
+  ProfileStackParamList,
+  HomeStackParamList
+} from './types';
+import { useAuth } from '../contexts/AuthContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import ThemedTabBar from '../components/ThemedTabBar';
@@ -17,7 +24,9 @@ import {
   SearchScreen,
   ProfileScreen,
   ChatRoomScreen,
-  ActivityFeedScreen
+  ActivityFeedScreen,
+  PostDetailsScreen,
+  NotificationsScreen
 } from '../screens/main';
 
 // Import settings screens
@@ -29,7 +38,12 @@ const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const MainTab = createBottomTabNavigator<MainTabParamList>();
 const ChatStack = createNativeStackNavigator<ChatStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
+const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 
+/**
+ * Authentication Navigator
+ * Handles login, registration, and password reset flows
+ */
 const AuthNavigator = () => {
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
@@ -39,6 +53,34 @@ const AuthNavigator = () => {
   );
 };
 
+/**
+ * Home Stack Navigator
+ * Handles main feed and post details
+ */
+const HomeNavigator = () => {
+  return (
+    <HomeStack.Navigator initialRouteName="Feed">
+      <HomeStack.Screen 
+        name="Feed" 
+        component={HomeScreen} 
+        options={{ headerShown: false }}
+      />
+      <HomeStack.Screen 
+        name="PostDetails" 
+        component={PostDetailsScreen} 
+        options={{ 
+          title: "Post",
+          headerBackTitle: "Back",
+        }}
+      />
+    </HomeStack.Navigator>
+  );
+};
+
+/**
+ * Chat Navigator
+ * Handles chat rooms and messaging
+ */
 const ChatNavigator = () => {
   return (
     <ChatStack.Navigator>
@@ -59,6 +101,10 @@ const ChatNavigator = () => {
   );
 };
 
+/**
+ * Profile Navigator
+ * Handles user profile, settings, and related screens
+ */
 const ProfileNavigator = () => {
   return (
     <ProfileStack.Navigator>
@@ -87,6 +133,10 @@ const ProfileNavigator = () => {
   );
 };
 
+/**
+ * Main Tab Navigator
+ * The primary navigation UI that appears at the bottom of the app
+ */
 const MainNavigator = () => {
   const { theme } = useTheme();
   
@@ -101,7 +151,7 @@ const MainNavigator = () => {
     >
       <MainTab.Screen 
         name="Home" 
-        component={HomeScreen} 
+        component={HomeNavigator} 
         options={{
           tabBarIcon: ({ color, size }: { color: string; size: number }) => (
             <MaterialCommunityIcons name="home" color={color} size={size} />
@@ -137,7 +187,7 @@ const MainNavigator = () => {
       />
       <MainTab.Screen 
         name="Activity" 
-        component={ActivityFeedScreen} 
+        component={NotificationsScreen as React.ComponentType<any>} 
         options={{
           tabBarIcon: ({ color, size }: { color: string; size: number }) => (
             <MaterialCommunityIcons name="bell" color={color} size={size} />
@@ -158,6 +208,10 @@ const MainNavigator = () => {
   );
 };
 
+/**
+ * Root Navigation Component
+ * The main navigation container that handles auth state and theme
+ */
 export const Navigation = () => {
   const { user } = useAuth();
   const { theme } = useTheme();

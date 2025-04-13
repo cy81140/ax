@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import { useTheme } from 'react-native-paper';
@@ -8,7 +8,10 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 const tabIcons = {
   Home: 'home',
   Chat: 'chat',
-  Profile: 'account',
+  Create: 'plus-circle',
+  Search: 'magnify',
+  Activity: 'bell',
+  ProfileTab: 'account',
   Settings: 'cog',
 } as const;
 
@@ -39,7 +42,8 @@ export function ThemedTabBar({ state, descriptors, navigation }: BottomTabBarPro
           }
         };
 
-        const iconName = tabIcons[route.name as keyof typeof tabIcons];
+        const iconName = tabIcons[route.name as keyof typeof tabIcons] || 'help-circle';
+        const label = options.tabBarLabel || route.name;
 
         return (
           <TouchableOpacity
@@ -56,6 +60,17 @@ export function ThemedTabBar({ state, descriptors, navigation }: BottomTabBarPro
               size={24}
               color={isFocused ? theme.colors.primary : theme.colors.onSurface}
             />
+            {typeof label === 'string' && (
+              <Text 
+                style={{ 
+                  fontSize: 10, 
+                  color: isFocused ? theme.colors.primary : theme.colors.onSurface,
+                  marginTop: 2
+                }}
+              >
+                {label}
+              </Text>
+            )}
           </TouchableOpacity>
         );
       })}

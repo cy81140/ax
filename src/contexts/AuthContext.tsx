@@ -30,9 +30,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event);
       setSession(session);
+      
       if (session?.user) {
+        // Check if user exists in our users table
+        const { data: existingUser, error: checkError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+          
+        if (checkError && checkError.code === 'PGRST116') {
+          // User doesn't exist in our users table yet, create profile
+          console.log('Creating user profile after auth');
+          await createUserProfile(session.user.id, session.user.email || '', session.user.user_metadata?.username || 'user');
+        }
+        
         fetchUser(session.user.id);
       } else {
         setUser(null);
@@ -42,6 +57,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const createUserProfile = async (userId: string, email: string, username: string) => {
+    try {
+      const { error: profileError } = await supabase.from('users').insert([
+        {
+          id: userId,
+          email,
+          username,
+        },
+      ]);
+
+      if (profileError) {
+        console.error('Error creating user profile:', profileError);
+        throw profileError;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to create user profile:', error);
+      return false;
+    }
+  };
 
   const fetchUser = async (userId: string) => {
     try {
@@ -70,22 +107,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { user: authUser }, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          username: username,
+        }
+      }
     });
 
     if (signUpError) throw signUpError;
     if (!authUser) throw new Error('Failed to create user');
 
-    const { error: profileError } = await supabase.from('users').insert([
-      {
-        id: authUser.id,
-        email,
-        username,
-      },
-    ]);
+    // Only create user profile if email confirmation is not required
+    // Otherwise, it will be created when they confirm their email
+    if (!authUser.identities || authUser.identities.length === 0 || !authUser.identities[0].identity_data?.email_confirmed_at) {
+      const { error: profileError } = await supabase.from('users').insert([
+        {
+          id: authUser.id,
+          email,
+          username,
+        },
+      ]);
 
-    if (profileError) {
-      await supabase.auth.signOut();
-      throw profileError;
+      if (profileError) {
+        console.error('Error creating profile during signup:', profileError);
+        await supabase.auth.signOut();
+        throw profileError;
+      }
     }
   };
 

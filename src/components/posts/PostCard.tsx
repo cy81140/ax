@@ -1,261 +1,242 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Image, TouchableOpacity } from 'react-native';
-import { Card, Text, Button, Avatar, IconButton, Divider } from 'react-native-paper';
+import React from 'react';
+import { View, StyleSheet, Image, Pressable } from 'react-native';
+import { Card, Text, useTheme, Avatar } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useResponsive } from '../../hooks/useResponsive';
+import { getResponsiveFontSize } from '../../styles/responsive';
+import { Post } from '../../types/services';
+import { PostActions } from './PostActions';
 import { formatDistanceToNow } from 'date-fns';
-import { theme } from '../../constants/theme';
-import { useAuth } from '../../hooks/useAuth';
-import { likePost, unlikePost } from '../../services/database';
-import { PollCard } from '../polls';
-import { getPollByPostId } from '../../services/polls';
 
 interface PostCardProps {
-  post: {
-    id: string;
-    user_id: string;
-    content: string;
-    image_url?: string;
-    video_url?: string;
-    created_at: string;
-    username: string;
-    profile_picture?: string;
-    likes_count: number;
-    comments_count: number;
-    user_liked: boolean;
-  };
+  post: Post;
+  onPress?: () => void;
+  onLikePress?: () => void;
   onCommentPress?: () => void;
+  onSharePress?: () => void;
+  isLiked?: boolean;
 }
 
-const PostCard = ({ post, onCommentPress }: PostCardProps) => {
-  const { user } = useAuth();
-  const [liked, setLiked] = useState(post.user_liked);
-  const [likesCount, setLikesCount] = useState(post.likes_count);
-  const [loading, setLoading] = useState(false);
-  const [hasPoll, setHasPoll] = useState(false);
-  const [pollData, setPollData] = useState<any>(null);
-  const [loadingPoll, setLoadingPoll] = useState(true);
+export const PostCard: React.FC<PostCardProps> = ({
+  post,
+  onPress,
+  onLikePress,
+  onCommentPress,
+  onSharePress,
+  isLiked = false,
+}) => {
+  const theme = useTheme();
+  const { isDesktop, isWeb, width } = useResponsive();
+  
+  // Format the date
+  const formattedDate = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
 
-  useEffect(() => {
-    // Check if this post has a poll
-    const checkForPoll = async () => {
-      try {
-        setLoadingPoll(true);
-        const { data, error } = await getPollByPostId(post.id, user?.id);
-        
-        if (error) throw error;
-        
-        if (data) {
-          setHasPoll(true);
-          setPollData(data);
-        }
-      } catch (err) {
-        console.error('Error checking for poll:', err);
-      } finally {
-        setLoadingPoll(false);
-      }
-    };
-    
-    checkForPoll();
-  }, [post.id, user?.id]);
-
-  const handleLike = async () => {
-    if (!user) return;
-    
-    setLoading(true);
-    try {
-      if (liked) {
-        await unlikePost(post.id, user.id);
-        setLiked(false);
-        setLikesCount(prev => Math.max(0, prev - 1));
-      } else {
-        await likePost(post.id, user.id);
-        setLiked(true);
-        setLikesCount(prev => prev + 1);
-      }
-    } catch (error) {
-      console.error('Error toggling like:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePollVoted = () => {
-    // Refresh poll data after voting
-    if (user) {
-      getPollByPostId(post.id, user.id).then(({ data }) => {
-        if (data) {
-          setPollData(data);
-        }
-      });
-    }
-  };
+  // Handle user data - adjust based on your Post type structure
+  const username = post.user?.username || "User";
+  const profilePicture = post.user?.profile_picture || "https://via.placeholder.com/50";
 
   return (
-    <Card style={styles.card}>
-      <Card.Content>
+    <Card 
+      style={[
+        styles.card, 
+        isDesktop && styles.desktopCard,
+        isWeb && styles.webCard
+      ]}
+      onPress={onPress}
+    >
+      <Card.Content style={styles.cardContent}>
         <View style={styles.header}>
-          <Avatar.Image
-            size={40}
-            source={
-              post.profile_picture
-                ? { uri: post.profile_picture }
-                : require('../../assets/default-avatar.png')
-            }
+          <Avatar.Image 
+            size={40} 
+            source={{ uri: profilePicture }} 
           />
-          <View style={styles.headerText}>
-            <Text style={styles.username}>{post.username}</Text>
-            <Text style={styles.timestamp}>
-              {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+          <View style={styles.userInfo}>
+            <Text variant="titleMedium" style={styles.username}>
+              {username}
+            </Text>
+            <Text variant="bodySmall" style={styles.date}>
+              {formattedDate}
             </Text>
           </View>
         </View>
-
-        <Text style={styles.content}>{post.content}</Text>
-
+        
+        <Text style={[styles.content, isDesktop && styles.desktopContent]}>
+          {post.content}
+        </Text>
+        
         {post.image_url && (
-          <Image source={{ uri: post.image_url }} style={styles.image} />
-        )}
-
-        {post.video_url && (
-          <View style={styles.videoContainer}>
-            <MaterialCommunityIcons name="play-circle" size={50} color="white" />
-            <Text style={styles.videoText}>Tap to play video</Text>
+          <View style={styles.imageContainer}>
+            <Image 
+              source={{ uri: post.image_url }} 
+              style={[
+                styles.image,
+                isDesktop && { height: 350 }
+              ]} 
+              resizeMode="cover"
+            />
           </View>
         )}
         
-        {hasPoll && pollData && !loadingPoll && (
-          <View style={styles.pollContainer}>
-            <PollCard poll={pollData} onVoted={handlePollVoted} />
+        <View style={styles.stats}>
+          <View style={styles.stat}>
+            <MaterialCommunityIcons 
+              name="thumb-up" 
+              size={16} 
+              color={theme.colors.primary} 
+            />
+            <Text style={styles.statText}>
+              {post.likes_count || 0}
+            </Text>
           </View>
-        )}
-        
-        {loadingPoll && hasPoll && (
-          <View style={styles.loadingPoll}>
-            <Text>Loading poll...</Text>
+          
+          <View style={styles.stat}>
+            <MaterialCommunityIcons 
+              name="comment" 
+              size={16} 
+              color={theme.colors.primary} 
+            />
+            <Text style={styles.statText}>
+              {post.comments_count || 0}
+            </Text>
           </View>
-        )}
-
-        <View style={styles.statsRow}>
-          <Text style={styles.statsText}>
-            {likesCount} {likesCount === 1 ? 'Like' : 'Likes'}
-          </Text>
-          <Text style={styles.statsText}>
-            {post.comments_count} {post.comments_count === 1 ? 'Comment' : 'Comments'}
-          </Text>
-        </View>
-
-        <Divider style={styles.divider} />
-
-        <View style={styles.actionRow}>
-          <Button
-            icon={liked ? 'heart' : 'heart-outline'}
-            mode="text"
-            onPress={handleLike}
-            loading={loading}
-            disabled={loading}
-            labelStyle={liked ? styles.likedText : styles.actionText}
-          >
-            Like
-          </Button>
-          
-          <Button
-            icon="comment-outline"
-            mode="text"
-            onPress={onCommentPress}
-            labelStyle={styles.actionText}
-          >
-            Comment
-          </Button>
-          
-          <Button
-            icon="share-outline"
-            mode="text"
-            onPress={() => console.log('Share pressed')}
-            labelStyle={styles.actionText}
-          >
-            Share
-          </Button>
         </View>
       </Card.Content>
+      
+      <Card.Actions style={styles.actions}>
+        <View style={styles.actionsContainer}>
+          <Pressable 
+            style={styles.action} 
+            onPress={onLikePress}
+          >
+            <MaterialCommunityIcons
+              name={isLiked ? "thumb-up" : "thumb-up-outline"}
+              size={24}
+              color={isLiked ? theme.colors.primary : theme.colors.onSurface}
+            />
+            <Text style={[styles.actionText, isLiked && styles.activeAction]}>Like</Text>
+          </Pressable>
+          
+          <Pressable 
+            style={styles.action} 
+            onPress={onCommentPress}
+          >
+            <MaterialCommunityIcons
+              name="comment-outline"
+              size={24}
+              color={theme.colors.onSurface}
+            />
+            <Text style={styles.actionText}>Comment</Text>
+          </Pressable>
+          
+          <Pressable 
+            style={styles.action} 
+            onPress={onSharePress}
+          >
+            <MaterialCommunityIcons
+              name="share-outline"
+              size={24}
+              color={theme.colors.onSurface}
+            />
+            <Text style={styles.actionText}>Share</Text>
+          </Pressable>
+        </View>
+      </Card.Actions>
     </Card>
   );
 };
 
 const styles = StyleSheet.create({
-  actionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  actionText: {
-    fontSize: 12,
-  },
   card: {
-    elevation: 2,
-    marginHorizontal: 16,
     marginVertical: 8,
+    marginHorizontal: 0,
+    overflow: 'hidden',
   },
-  content: {
-    fontSize: 16,
-    marginBottom: 12,
-  },
-  divider: {
-    marginVertical: 12,
-  },
-  header: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  headerText: {
-    marginLeft: 12,
-  },
-  image: {
-    borderRadius: 8,
-    height: 200,
-    marginVertical: 8,
+  desktopCard: {
+    maxWidth: 800,
+    alignSelf: 'center',
     width: '100%',
   },
-  likedText: {
-    color: theme.colors.primary,
-    fontSize: 12,
+  webCard: {
+    shadowRadius: 4,
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
   },
-  loadingPoll: {
-    alignItems: 'center',
+  cardContent: {
     padding: 16,
   },
-  pollContainer: {
-    marginTop: 8,
-  },
-  statsRow: {
+  header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 12,
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  statsText: {
-    color: theme.colors.outline,
-    fontSize: 12,
-  },
-  timestamp: {
-    color: theme.colors.outline,
-    fontSize: 12,
+  userInfo: {
+    marginLeft: 12,
+    flex: 1,
   },
   username: {
-    fontSize: 16,
     fontWeight: 'bold',
+    fontSize: getResponsiveFontSize(16),
   },
-  videoContainer: {
-    alignItems: 'center',
-    backgroundColor: '#000',
+  date: {
+    color: '#666',
+    fontSize: getResponsiveFontSize(12),
+  },
+  content: {
+    fontSize: getResponsiveFontSize(16),
+    marginBottom: 12,
+    lineHeight: 22,
+  },
+  desktopContent: {
+    fontSize: getResponsiveFontSize(18),
+    lineHeight: 26,
+  },
+  imageContainer: {
+    marginVertical: 12,
     borderRadius: 8,
-    height: 200,
-    justifyContent: 'center',
-    marginVertical: 8,
+    overflow: 'hidden',
+  },
+  image: {
     width: '100%',
+    height: 250,
+    backgroundColor: '#f0f0f0',
   },
-  videoText: {
-    color: 'white',
-    marginTop: 8,
+  stats: {
+    flexDirection: 'row',
+    marginTop: 12,
   },
-});
-
-export default PostCard; 
+  stat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  statText: {
+    marginLeft: 4,
+    fontSize: getResponsiveFontSize(14),
+    color: '#666',
+  },
+  actions: {
+    padding: 0,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-around',
+  },
+  action: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    flex: 1,
+  },
+  actionText: {
+    marginLeft: 4,
+    fontSize: getResponsiveFontSize(14),
+    color: '#666',
+  },
+  activeAction: {
+    color: '#4A90E2',
+  },
+}); 

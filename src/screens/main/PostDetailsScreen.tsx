@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, FlatList, Image } from 'react-native';
-import { Text, TextInput, Button, useTheme, ActivityIndicator } from 'react-native-paper';
+import { View, StyleSheet, FlatList, Image, ScrollView } from 'react-native';
+import { Text, TextInput, Button, useTheme, ActivityIndicator, Card } from 'react-native-paper';
 import { useAuth } from '../../contexts/AuthContext';
 import { Post, Comment } from '../../types/services';
 import { postService } from '../../services/post';
 import { getCommentsByPostId } from '../../services/database';
-import { MainStackScreenProps } from '../../types/navigation';
+import { HomeStackScreenProps } from '../../navigation/types';
 import { PostActions } from '../../components/posts/PostActions';
+import { useResponsive } from '../../hooks/useResponsive';
+import { ResponsiveView } from '../../components/ui/ResponsiveView';
+import { getResponsiveSpacing } from '../../styles/responsive';
 
-type Props = MainStackScreenProps<'PostDetails'>;
+type Props = HomeStackScreenProps<'PostDetails'>;
 
-export const PostDetailsScreen: React.FC<Props> = ({ route }) => {
+export const PostDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
   const { postId } = route.params;
   const theme = useTheme();
   const { user } = useAuth();
@@ -21,6 +24,7 @@ export const PostDetailsScreen: React.FC<Props> = ({ route }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLiked, setIsLiked] = useState(false);
+  const { isDesktop, isWeb } = useResponsive();
 
   useEffect(() => {
     fetchPost();
@@ -95,19 +99,29 @@ export const PostDetailsScreen: React.FC<Props> = ({ route }) => {
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
+      <ResponsiveView 
+        style={styles.container}
+        desktopStyle={styles.desktopContainer}
+        webStyle={styles.webContainer}
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </ResponsiveView>
     );
   }
 
   if (error || !post) {
     return (
-      <View style={styles.centerContainer}>
-        <Text variant="bodyLarge" style={styles.error}>
-          {error || 'Post not found'}
-        </Text>
-      </View>
+      <ResponsiveView 
+        style={styles.container}
+        desktopStyle={styles.desktopContainer}
+        webStyle={styles.webContainer}
+      >
+        <View style={styles.errorContainer}>
+          <Text>Post not found or an error occurred.</Text>
+        </View>
+      </ResponsiveView>
     );
   }
 
@@ -124,63 +138,76 @@ export const PostDetailsScreen: React.FC<Props> = ({ route }) => {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.postContainer}>
-        <Text variant="labelSmall" style={styles.username}>
-          {post.user?.username}
-        </Text>
-        <Text variant="bodyLarge" style={styles.content}>
-          {post.content}
-        </Text>
-        {post.image_url && (
-          <Image 
-            source={{ uri: post.image_url }} 
-            style={styles.image} 
-            resizeMode="cover"
-          />
-        )}
-        <Text variant="labelSmall" style={styles.timestamp}>
-          {new Date(post.created_at).toLocaleDateString()}
-        </Text>
-        <PostActions
-          post={post}
-          onLike={handleLike}
-          onComment={() => {}}
-          onShare={handleShare}
-          isLiked={isLiked}
-        />
-      </View>
-
-      <FlatList
-        data={comments}
-        renderItem={renderComment}
-        keyExtractor={(item) => item.id}
-        style={styles.commentsList}
-        ListHeaderComponent={
-          <View style={styles.commentInputContainer}>
-            <TextInput
-              mode="outlined"
-              value={newComment}
-              onChangeText={setNewComment}
-              placeholder="Write a comment..."
-              style={styles.commentInput}
-              maxLength={500}
-              multiline
-              disabled={submitting}
+    <ResponsiveView 
+      style={styles.container}
+      desktopStyle={styles.desktopContainer}
+      webStyle={styles.webContainer}
+    >
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={isDesktop ? styles.desktopContentContainer : null}
+      >
+        <Card style={styles.postCard}>
+          <View style={styles.postContainer}>
+            <Text variant="labelSmall" style={styles.username}>
+              {post.user?.username}
+            </Text>
+            <Text variant="bodyLarge" style={styles.content}>
+              {post.content}
+            </Text>
+            {post.image_url && (
+              <Image 
+                source={{ uri: post.image_url }} 
+                style={styles.image} 
+                resizeMode="cover"
+              />
+            )}
+            <Text variant="labelSmall" style={styles.timestamp}>
+              {new Date(post.created_at).toLocaleDateString()}
+            </Text>
+            <PostActions
+              post={post}
+              onLike={handleLike}
+              onComment={() => {}}
+              onShare={handleShare}
+              isLiked={isLiked}
             />
-            <Button
-              mode="contained"
-              onPress={handleComment}
-              disabled={!newComment.trim() || submitting}
-              loading={submitting}
-              style={styles.commentButton}
-            >
-              Post
-            </Button>
           </View>
-        }
-      />
-    </View>
+        </Card>
+        
+        <View style={[styles.commentsSection, isDesktop && styles.desktopCommentsSection]}>
+          <FlatList
+            data={comments}
+            renderItem={renderComment}
+            keyExtractor={(item) => item.id}
+            style={styles.commentsList}
+            ListHeaderComponent={
+              <View style={styles.commentInputContainer}>
+                <TextInput
+                  mode="outlined"
+                  value={newComment}
+                  onChangeText={setNewComment}
+                  placeholder="Write a comment..."
+                  style={styles.commentInput}
+                  maxLength={500}
+                  multiline
+                  disabled={submitting}
+                />
+                <Button
+                  mode="contained"
+                  onPress={handleComment}
+                  disabled={!newComment.trim() || submitting}
+                  loading={submitting}
+                  style={styles.commentButton}
+                >
+                  Post
+                </Button>
+              </View>
+            }
+          />
+        </View>
+      </ScrollView>
+    </ResponsiveView>
   );
 };
 
@@ -188,6 +215,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  desktopContainer: {
+    paddingHorizontal: '15%',
+    maxWidth: 1000,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  webContainer: {
+    paddingHorizontal: '5%',
+  },
+  desktopContentContainer: {
+    paddingHorizontal: 20,
+  },
+  desktopCommentsSection: {
+    maxWidth: 800,
+    alignSelf: 'center',
+    width: '100%',
   },
   centerContainer: {
     flex: 1,
@@ -239,5 +283,24 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  postCard: {
+    marginBottom: 20,
+  },
+  commentsSection: {
+    padding: 16,
   },
 }); 

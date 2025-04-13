@@ -1,94 +1,99 @@
-# Amino App Clone
+# Amino App
 
-A simplified version of the Amino app, focusing on a single shared community where users can engage, share content, and communicate. The chatrooms are organized by regions and provinces in the Philippines.
+A social networking mobile application built with React Native and Expo.
 
-## Features
+## Navigation Structure
 
-- User Authentication (Registration, Login, Profile Management)
-- Content Creation and Sharing (Text posts, Images, Videos, Polls, Quizzes)
-- Direct Messaging (One-on-one and Group chat)
-- Push Notifications
-- Search Functionality
-- Activity Feeds
-- Moderation System
+The app's navigation is organized hierarchically:
 
-## Tech Stack
+1. **RootStack**: The outermost navigator that handles authentication state
+   - **AuthStack**: Shown when the user is not logged in
+     - Login Screen
+     - Register Screen
+   - **MainTabNavigator**: Shown when the user is logged in
+     - **HomeTab**: Feed and post details
+     - **ChatTab**: Messaging functionality
+     - **CreateTab**: Content creation
+     - **SearchTab**: Search functionality
+     - **NotificationsTab**: User notifications
+     - **ProfileTab**: User profile and settings
 
-- **Frontend**: React Native with Expo
-- **Backend**: Supabase
-  - Authentication
-  - Database (PostgreSQL)
-  - Storage
-  - Real-time Communication
-- **UI Components**: React Native Paper
+All navigation types are defined in `src/navigation/types.ts`.
 
-## Getting Started
+## Responsive Design
 
-### Prerequisites
+The app implements a responsive design system that works across mobile and web platforms:
 
-- Node.js (v14 or later)
+### Core Components
+- **useResponsive**: A custom hook in `src/hooks/useResponsive.tsx` that provides device information and responsive helpers
+- **ResponsiveView**: A wrapper component in `src/components/ui/ResponsiveView.tsx` that applies different styles based on device type
+- **Responsive Utilities**: Helper functions in `src/styles/responsive.ts` for consistent spacing, typography, and responsive calculations
+
+### Key Features
+- **Device Detection**: Automatically detects device type (mobile/tablet/desktop)
+- **Platform Adaptation**: Applies specific styles for web vs native platforms
+- **Flexible Layouts**: Components adapt to different screen sizes
+- **Responsive Typography**: Text scales appropriately across devices
+
+### Breakpoints
+```
+small: 375px   // Small phone
+medium: 768px  // Large phone / small tablet
+large: 1024px  // Tablet / small desktop
+xlarge: 1280px // Desktop / large tablet
+```
+
+## Development Prerequisites
+
+- Node.js (v14 or higher)
 - npm or yarn
 - Expo CLI
 - Supabase account
 
-### Installation
+## Setup Instructions
 
 1. Clone the repository:
-```bash
-git clone <repository-url>
-cd amino-app
-```
+   ```
+   git clone https://github.com/yourusername/amino-app.git
+   cd amino-app
+   ```
 
 2. Install dependencies:
-```bash
-npm install
-```
+   ```
+   npm install
+   ```
+   or
+   ```
+   yarn install
+   ```
 
-3. Create a `.env` file in the root directory and add your Supabase credentials:
-```
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
-```
+3. Set up environment variables:
+   Create a `.env` file in the project root with the following variables:
+   ```
+   SUPABASE_URL=your_supabase_url
+   SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
 
 4. Start the development server:
-```bash
-npm start
-```
+   ```
+   expo start
+   ```
 
-## Project Structure
+## Database Setup
 
-```
-src/
-├── components/     # Reusable UI components
-├── screens/        # Screen components
-├── navigation/     # Navigation configuration
-├── services/       # API and external services
-├── utils/          # Utility functions
-├── hooks/          # Custom React hooks
-├── types/          # TypeScript type definitions
-├── constants/      # Constants and theme
-└── assets/         # Static assets
-```
+If you're using Supabase as your backend, set up a trigger to create a user profile when a new user is created:
 
-## Development
+```sql
+-- Create a trigger to automatically create a profile when a new user is created
+CREATE OR REPLACE FUNCTION public.create_profile_for_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.users (id, email, username)
+  VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'username');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
-The project follows a phased development approach:
-
-1. Project Setup and User Authentication
-2. Content Creation and Sharing
-3. Direct Messaging and Chatrooms
-4. Search and Activity Feeds
-5. Moderation System and Testing
-6. Deployment
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details. 
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.create_profile_for_user(); 
