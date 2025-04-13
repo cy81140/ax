@@ -1,7 +1,7 @@
-import LoginScreen from './LoginScreen';
+import { LoginScreen } from './LoginScreen';
 import RegisterScreen from './RegisterScreen';
 import ForgotPasswordScreen from './ForgotPasswordScreen';
 
 export { LoginScreen } from './LoginScreen';
-export { RegisterScreen } from './RegisterScreen';
+export { RegisterScreen };
 export { ForgotPasswordScreen }; 

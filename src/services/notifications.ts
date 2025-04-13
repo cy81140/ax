@@ -1,5 +1,5 @@
 import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
 import { Notification } from '../types/services';
@@ -13,50 +13,39 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Register for push notifications
-export const registerForPushNotifications = async (userId: string) => {
-  let token;
+// Request permission for push notifications
+export const registerForPushNotifications = async () => {
+  try {
+    // Check if this is a physical device (notifications won't work in simulators)
+    if (!Constants.isDevice) {
+      return { status: 'error', message: 'Must use a physical device for notifications' };
+    }
 
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF231F7C',
+    // Request permissions
+    const permissionResponse = await Notifications.requestPermissionsAsync({
+      ios: {
+        allowAlert: true,
+        allowBadge: true,
+        allowSound: true,
+        allowAnnouncements: true,
+      },
     });
-  }
 
-  if (Device.isDevice) {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
+    if (!permissionResponse.granted) {
+      return { status: 'error', message: 'Permission for notifications not granted' };
     }
-    if (finalStatus !== 'granted') {
-      alert('Failed to get push token for push notification!');
-      return;
-    }
-    token = (await Notifications.getExpoPushTokenAsync()).data;
-  } else {
-    alert('Must use physical device for Push Notifications');
+
+    // Get the token
+    const token = await Notifications.getExpoPushTokenAsync({
+      projectId: Constants.expoConfig?.extra?.eas?.projectId,
+    });
+
+    // Return the token
+    return { status: 'success', token: token.data };
+  } catch (error) {
+    console.error('Error getting push token:', error);
+    return { status: 'error', message: 'Error requesting notification permissions' };
   }
-
-  if (token) {
-    const { error } = await supabase
-      .from('user_push_tokens')
-      .upsert({
-        user_id: userId,
-        token,
-        platform: Platform.OS,
-      });
-
-    if (error) {
-      console.error('Error saving push token:', error);
-    }
-  }
-
-  return token;
 };
 
 // Send push notification (for testing - in prod this would be handled by a server)

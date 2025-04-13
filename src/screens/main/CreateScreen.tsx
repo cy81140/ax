@@ -12,27 +12,35 @@ import { AminoError, ErrorTypes } from '../../utils/errors';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MainStackParamList } from '../../types/navigation';
 import { postService } from '../../services/post';
+import { User, Post } from '../../types/services';
 
 type CreateScreenNavigationProp = NativeStackNavigationProp<MainStackParamList, 'CreatePost'>;
 
-interface PostFormData {
-  content: string;
-  image_url?: string;
-}
+type ContentType = 'text' | 'image' | 'video' | 'poll';
+
+// Helper function to get blob from URI
+const getBlob = async (uri: string): Promise<Blob> => {
+  const response = await fetch(uri);
+  return await response.blob();
+};
 
 const CreateScreen = () => {
   const navigation = useNavigation<CreateScreenNavigationProp>();
   const { user } = useAuth();
   const theme = useTheme();
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState<PostFormData>({
+  const [contentType, setContentType] = useState<ContentType>('text');
+  const [formData, setFormData] = useState<Partial<Post>>({
     content: '',
+    likes_count: 0,
+    comments_count: 0
   });
-  const [contentType, setContentType] = useState<'text' | 'image' | 'video' | 'poll'>('text');
-  const [mediaUri, setMediaUri] = useState<string | null>(null);
+  const [mediaUri, setMediaUri] = useState<string | undefined>(undefined);
   const [showPollForm, setShowPollForm] = useState(false);
   const [createdPostId, setCreatedPostId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
 
   // Request permission for media library
   useEffect(() => {
@@ -60,6 +68,7 @@ const CreateScreen = () => {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         setMediaUri(result.assets[0].uri);
         setContentType(isVideo ? 'video' : 'image');
+        setMediaType(isVideo ? 'video' : 'image');
       }
     } catch (error) {
       const aminoError = new AminoError(
@@ -73,62 +82,85 @@ const CreateScreen = () => {
     }
   };
 
-  const uploadMedia = async () => {
-    if (!mediaUri || !user) {
-      throw new AminoError(
-        'Media URI and user are required',
-        ErrorTypes.VALIDATION_ERROR,
-        400
-      );
-    }
-
+  const handleMediaUpload = async () => {
     try {
-      const uriParts = mediaUri.split('.');
-      const fileExtension = uriParts[uriParts.length - 1];
-      
-      const filePath = `${user.id}/${Date.now()}.${fileExtension}`;
-      
-      // Convert uri to blob
-      const response = await fetch(mediaUri);
-      const blob = await response.blob();
-      
-      if (contentType === 'image') {
-        const { data, error } = await uploadImage(filePath, blob);
-        if (error) throw error;
-        return data?.publicUrl;
-      } else if (contentType === 'video') {
-        const { data, error } = await uploadVideo(filePath, blob);
-        if (error) throw error;
-        return data?.publicUrl;
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in to upload media');
+        return undefined;
       }
+      
+      setUploading(true);
+      const filePath = `${user.id}/${Date.now()}`;
+      if (!mediaUri) {
+        return undefined;
+      }
+      const blob = await getBlob(mediaUri);
+
+      if (mediaType === 'image') {
+        const result = await uploadImage(filePath, blob);
+        setMediaUri(result.publicUrl);
+        return result.publicUrl;
+      } else if (mediaType === 'video') {
+        const result = await uploadVideo(filePath, blob);
+        setMediaUri(result.publicUrl);
+        return result.publicUrl;
+      }
+      return undefined;
     } catch (error) {
-      const aminoError = new AminoError(
-        'Failed to upload media',
-        ErrorTypes.SYSTEM_ERROR,
-        500,
-        { originalError: error }
-      );
-      setError(aminoError.message);
-      Alert.alert('Error', aminoError.message);
-      return null;
+      console.error('Error uploading media:', error);
+      Alert.alert('Upload Failed', 'Failed to upload media. Please try again.');
+      return undefined;
+    } finally {
+      setUploading(false);
     }
   };
 
   const handleSubmit = async () => {
-    if (!user) return;
+    if (!user || !formData.content) return;
     
-    setLoading(true);
     try {
-      const postData = await postService.createPost({
-        ...formData,
-        user_id: user.id,
-      });
+      setLoading(true);
+      
+      let postData: Post | null = null;
+      
+      if (contentType === 'text' || contentType === 'image' || contentType === 'video') {
+        // Create a basic post
+        postData = await createPost({
+          user_id: user.id,
+          content: formData.content || '',
+          image_url: mediaUri,
+          likes_count: 0,
+          comments_count: 0
+        });
+      } else if (contentType === 'poll') {
+        // First create the post
+        postData = await createPost({
+          user_id: user.id,
+          content: 'Poll: ' + (formData.content || ''),
+          image_url: mediaUri,
+          likes_count: 0,
+          comments_count: 0
+        });
+        
+        // Then create the poll attached to the post
+        if (postData) {
+          // Implementation for poll creation...
+        }
+      }
       
       if (postData) {
-        navigation.goBack();
+        setCreatedPostId(postData.id);
+        // Reset form state
+        setFormData({ content: '', likes_count: 0, comments_count: 0 });
+        setMediaUri(undefined);
+        setContentType('text');
+        // Show success
+        Alert.alert('Success', 'Post created successfully');
+        navigation.navigate('Home' as any);
       }
     } catch (error) {
-      console.error('Error creating post:', error);
+      console.error("Error creating post:", error);
+      setError("Failed to create post. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -146,7 +178,7 @@ const CreateScreen = () => {
       return;
     }
     
-    if (formData.content.trim() === '' && contentType === 'text') {
+    if (!formData.content || formData.content.trim() === '' && contentType === 'text') {
       const error = new AminoError(
         'Post content cannot be empty',
         ErrorTypes.VALIDATION_ERROR,
@@ -165,7 +197,7 @@ const CreateScreen = () => {
       let videoUrl: string | undefined = undefined;
       
       if ((contentType === 'image' || contentType === 'video') && mediaUri) {
-        const mediaUrl = await uploadMedia();
+        const mediaUrl = await handleMediaUpload();
         if (contentType === 'image') {
           imageUrl = mediaUrl || undefined;
         } else {
@@ -173,16 +205,20 @@ const CreateScreen = () => {
         }
       }
       
-      const { data: postData, error: postError } = await createPost(
-        user.id,
-        contentType === 'poll' ? 'Poll: ' + formData.content : formData.content,
-        imageUrl,
-        videoUrl
-      );
+      const response = await createPost({
+        user_id: user.id,
+        content: contentType === 'poll' ? 'Poll: ' + (formData.content || '') : (formData.content || ''),
+        image_url: imageUrl,
+        likes_count: 0,
+        comments_count: 0
+      });
+      
+      const postData = 'data' in response ? response.data : response;
+      const postError = 'error' in response ? response.error : null;
       
       if (postError) throw postError;
       
-      if (postData && postData[0]) {
+      if (postData && Array.isArray(postData) && postData[0]) {
         if (contentType === 'poll') {
           setCreatedPostId(postData[0].id);
           setShowPollForm(true);
@@ -208,8 +244,8 @@ const CreateScreen = () => {
   };
 
   const resetForm = () => {
-    setFormData({ content: '' });
-    setMediaUri(null);
+    setFormData({ content: '', likes_count: 0, comments_count: 0 });
+    setMediaUri(undefined);
     setContentType('text');
     setCreatedPostId(null);
     setError(null);
@@ -238,7 +274,7 @@ const CreateScreen = () => {
           <TextInput
             label="What's on your mind?"
             value={formData.content}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, content: text }))}
+            onChangeText={(text: string) => setFormData(prev => ({ ...prev, content: text }))}
             multiline
             numberOfLines={4}
             style={styles.input}
@@ -258,7 +294,7 @@ const CreateScreen = () => {
                 icon="close"
                 size={24}
                 onPress={() => {
-                  setMediaUri(null);
+                  setMediaUri(undefined);
                   setContentType('text');
                 }}
                 style={styles.removeMediaButton}
@@ -301,7 +337,7 @@ const CreateScreen = () => {
             onPress={handleCreatePost}
             style={styles.button}
             loading={loading}
-            disabled={loading || (!formData.content.trim() && contentType === 'text')}
+            disabled={loading || (!formData.content?.trim() && contentType === 'text')}
           >
             {contentType === 'poll' ? 'Continue to Poll' : 'Post'}
           </Button>

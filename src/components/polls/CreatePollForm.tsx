@@ -80,16 +80,23 @@ const CreatePollForm = ({ postId, onPollCreated, onCancel }: CreatePollFormProps
       // Filter out empty options
       const validOptions = options.filter(opt => opt.trim().length > 0);
       
-      const { data, error: pollError } = await createPoll(
-        user.id,
-        postId,
+      const pollOptions = validOptions.map(optionText => ({
+        text: optionText,
+        option_text: optionText,
+        // These fields will be assigned by the backend
+        id: '',
+        poll_id: '',
+        votes_count: 0
+      }));
+      
+      const response = await createPoll(postId, {
         question,
-        validOptions,
-        isMultipleChoice,
-        hasEndDate ? endDate : null
-      );
+        options: pollOptions,
+        user_id: user.id,
+        ends_at: hasEndDate ? endDate.toISOString() : ''
+      });
 
-      if (pollError) throw pollError;
+      if (response.error) throw response.error;
       
       // Poll created successfully
       onPollCreated();

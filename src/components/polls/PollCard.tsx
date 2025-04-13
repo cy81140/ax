@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Card, Text, RadioButton, Checkbox, Button, ProgressBar, Caption } from 'react-native-paper';
 import { useAuth } from '../../hooks/useAuth';
-import { Poll, getPollResults, voteOnPoll } from '../../services/polls';
+import { Poll, getPollResults, votePoll } from '../../services/polls';
 import { theme } from '../../constants/theme';
 
 interface PollCardProps {
@@ -12,7 +12,7 @@ interface PollCardProps {
 
 interface PollResult {
   option_id: string;
-  option_text: string;
+  text: string;
   votes: number;
   percentage: number;
 }
@@ -45,9 +45,11 @@ const PollCard = ({ poll, onVoted }: PollCardProps) => {
         const totalVotes = data.total_votes;
         setTotalVotes(totalVotes);
         
-        // Calculate percentages
-        const resultsWithPercentage = data.options.map(option => ({
-          ...option,
+        // Calculate percentages and transform to match our interface
+        const resultsWithPercentage: PollResult[] = data.options.map(option => ({
+          option_id: option.option_id,
+          text: option.option_text, // Map option_text to text
+          votes: option.votes,
           percentage: totalVotes > 0 ? (option.votes / totalVotes) * 100 : 0
         }));
         
@@ -68,14 +70,14 @@ const PollCard = ({ poll, onVoted }: PollCardProps) => {
     try {
       // For single-choice polls
       if (!isMultipleChoice) {
-        const { error } = await voteOnPoll(user.id, poll.id, selectedOptions[0]);
+        const { error } = await votePoll(user.id, poll.id, selectedOptions[0]);
         if (error) throw error;
       } 
       // For multiple-choice polls
       else {
         // Vote on each selected option
         for (const optionId of selectedOptions) {
-          const { error } = await voteOnPoll(user.id, poll.id, optionId);
+          const { error } = await votePoll(user.id, poll.id, optionId);
           if (error) throw error;
         }
       }
@@ -152,7 +154,7 @@ const PollCard = ({ poll, onVoted }: PollCardProps) => {
       {results.map(result => (
         <View key={result.option_id} style={styles.resultRow}>
           <View style={styles.resultLabelRow}>
-            <Text style={styles.optionText}>{result.option_text}</Text>
+            <Text style={styles.optionText}>{result.text}</Text>
             <Text style={styles.voteCount}>
               {result.votes} {result.votes === 1 ? 'vote' : 'votes'} ({result.percentage.toFixed(1)}%)
             </Text>

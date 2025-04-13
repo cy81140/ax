@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, FlatList } from 'react-native';
+import { View, StyleSheet, FlatList, Image } from 'react-native';
 import { Text, TextInput, Button, useTheme, ActivityIndicator } from 'react-native-paper';
 import { useAuth } from '../../contexts/AuthContext';
 import { Post, Comment } from '../../types/services';
 import { postService } from '../../services/post';
-import { commentService } from '../../services/comment';
+import { getCommentsByPostId } from '../../services/database';
 import { MainStackScreenProps } from '../../types/navigation';
 import { PostActions } from '../../components/posts/PostActions';
 
@@ -31,7 +31,7 @@ export const PostDetailsScreen: React.FC<Props> = ({ route }) => {
     try {
       const post = await postService.getPost(postId);
       setPost(post);
-      const isLiked = await postService.isPostLikedByUser(postId, user?.id || '');
+      const isLiked = await postService.isLiked(postId, user?.id || '');
       setIsLiked(isLiked);
     } catch (error) {
       console.error('Error fetching post:', error);
@@ -43,8 +43,10 @@ export const PostDetailsScreen: React.FC<Props> = ({ route }) => {
 
   const fetchComments = async () => {
     try {
-      const comments = await commentService.getComments(postId);
-      setComments(comments);
+      const response = await getCommentsByPostId(postId);
+      if (response.data) {
+        setComments(response.data);
+      }
     } catch (error) {
       console.error('Error fetching comments:', error);
       setError('Failed to load comments');
@@ -56,7 +58,7 @@ export const PostDetailsScreen: React.FC<Props> = ({ route }) => {
 
     try {
       setSubmitting(true);
-      await commentService.createComment({
+      await postService.createComment({
         post_id: postId,
         user_id: user.id,
         text: newComment.trim(),
@@ -131,7 +133,11 @@ export const PostDetailsScreen: React.FC<Props> = ({ route }) => {
           {post.content}
         </Text>
         {post.image_url && (
-          <Image source={{ uri: post.image_url }} style={styles.image} />
+          <Image 
+            source={{ uri: post.image_url }} 
+            style={styles.image} 
+            resizeMode="cover"
+          />
         )}
         <Text variant="labelSmall" style={styles.timestamp}>
           {new Date(post.created_at).toLocaleDateString()}

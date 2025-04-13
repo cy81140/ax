@@ -1,37 +1,29 @@
-import { supabase, createSupabaseResponse } from './supabase';
+import { supabase } from './supabase';
 import { createPoll as createPollService } from './polls';
 import { AminoError, ErrorTypes } from '../utils/errors';
 import { Post, Comment, User, Poll, PollOption, PollVote } from '../types/services';
 
 // Posts
-export const createPost = async (userId: string, content: string, imageUrl?: string, videoUrl?: string) => {
-  if (!userId) {
-    return createSupabaseResponse(Promise.resolve({
-      data: null,
-      error: new AminoError('User ID is required', ErrorTypes.VALIDATION_ERROR, 400)
-    }));
-  }
-
-  if (!content && !imageUrl && !videoUrl) {
-    return createSupabaseResponse(Promise.resolve({
-      data: null,
-      error: new AminoError('Post must have content, image, or video', ErrorTypes.VALIDATION_ERROR, 400)
-    }));
-  }
-
-  return createSupabaseResponse(
-    supabase
+export const createPost = async (post: Omit<Post, 'id' | 'created_at'>): Promise<Post> => {
+  try {
+    const { data, error } = await supabase
       .from('posts')
-      .insert([
-        {
-          user_id: userId,
-          content,
-          image_url: imageUrl,
-          video_url: videoUrl,
-        },
-      ])
-      .select()
-  );
+      .insert({
+        user_id: post.user_id,
+        content: post.content,
+        image_url: post.image_url,
+        likes_count: 0,
+        comments_count: 0,
+      })
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error creating post:', error);
+    throw error;
+  }
 };
 
 export const getPosts = async (limit = 10, offset = 0) => {
@@ -54,26 +46,20 @@ export const getPosts = async (limit = 10, offset = 0) => {
   }
 };
 
-export const getPostById = async (postId: string) => {
-  if (!postId) {
-    return createSupabaseResponse(Promise.resolve({
-      data: null,
-      error: new AminoError('Post ID is required', ErrorTypes.VALIDATION_ERROR, 400)
-    }));
-  }
-
-  return createSupabaseResponse(
-    supabase
+export const getPost = async (postId: string): Promise<Post> => {
+  try {
+    const { data, error } = await supabase
       .from('posts')
-      .select(`
-        *,
-        users:user_id (username, profile_picture),
-        comments:comments (*),
-        polls:polls (*)
-      `)
+      .select('*, user:users(*)')
       .eq('id', postId)
-      .single()
-  );
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error(`Error fetching post ${postId}:`, error);
+    throw error;
+  }
 };
 
 // Comments
@@ -116,60 +102,51 @@ export const getCommentsByPostId = async (postId: string) => {
 };
 
 // Polls - using the more comprehensive implementation from polls.ts
-export const createPoll = async (postId: string, question: string, options: string[]) => {
-  if (!postId || !question || !options || options.length < 2) {
-    return createSupabaseResponse(Promise.resolve({
-      data: null,
-      error: new AminoError('Invalid poll data', ErrorTypes.VALIDATION_ERROR, 400)
-    }));
-  }
-  
+export const createPoll = async (postId: string, pollData: {
+  question: string;
+  options: string[];
+}) => {
   try {
-    // First fetch the post to get the user ID
-    const { data: post, error: postError } = await supabase
-      .from('posts')
-      .select('user_id')
-      .eq('id', postId)
+    const { question, options } = pollData;
+
+    // First create the poll
+    const { data: poll, error: pollError } = await supabase
+      .from('polls')
+      .insert({
+        post_id: postId,
+        question,
+        is_multiple_choice: false, // default to single choice
+        ends_at: null // no end date by default
+      })
+      .select()
       .single();
-      
-    if (postError) {
-      return createSupabaseResponse(Promise.resolve({
-        data: null,
-        error: postError
-      }));
-    }
-    
-    if (!post) {
-      return createSupabaseResponse(Promise.resolve({
-        data: null,
-        error: new AminoError('Post not found', ErrorTypes.NOT_FOUND, 404)
-      }));
-    }
-    
-    // Call the comprehensive poll service with all required params
-    return createPollService(
-      post.user_id,
-      postId,
-      question,
-      options,
-      false, // default to single choice
-      null // no end date by default
-    );
-  } catch (error) {
-    return createSupabaseResponse(Promise.resolve({
-      data: null,
-      error
+
+    if (pollError) throw pollError;
+
+    // Then create the options
+    const pollOptionsToInsert = options.map(optionText => ({
+      poll_id: poll.id,
+      text: optionText,
     }));
+
+    const { data: pollOptions, error: optionsError } = await supabase
+      .from('poll_options')
+      .insert(pollOptionsToInsert)
+      .select();
+
+    if (optionsError) throw optionsError;
+
+    return { ...poll, options: pollOptions };
+  } catch (error) {
+    console.error('Error creating poll:', error);
+    throw error;
   }
 };
 
 // Storage functions for image and video uploads
 export const uploadImage = async (filePath: string, file: Blob) => {
   if (!filePath || !file) {
-    return createSupabaseResponse(Promise.resolve({
-      data: null,
-      error: new AminoError('File path and file are required', ErrorTypes.VALIDATION_ERROR, 400)
-    }));
+    throw new AminoError('File path and file are required', ErrorTypes.VALIDATION_ERROR, 400);
   }
 
   try {
@@ -177,36 +154,23 @@ export const uploadImage = async (filePath: string, file: Blob) => {
       .from('images')
       .upload(filePath, file);
 
-    if (error) {
-      return createSupabaseResponse(Promise.resolve({
-        data: null,
-        error
-      }));
-    }
+    if (error) throw error;
 
     // Get the public URL
     const { data: publicUrlData } = supabase.storage
       .from('images')
       .getPublicUrl(filePath);
 
-    return createSupabaseResponse(Promise.resolve({
-      data: { ...data, publicUrl: publicUrlData.publicUrl },
-      error: null
-    }));
+    return { ...data, publicUrl: publicUrlData.publicUrl };
   } catch (error) {
-    return createSupabaseResponse(Promise.resolve({
-      data: null,
-      error
-    }));
+    console.error('Error uploading image:', error);
+    throw error;
   }
 };
 
 export const uploadVideo = async (filePath: string, file: Blob) => {
   if (!filePath || !file) {
-    return createSupabaseResponse(Promise.resolve({
-      data: null,
-      error: new AminoError('File path and file are required', ErrorTypes.VALIDATION_ERROR, 400)
-    }));
+    throw new AminoError('File path and file are required', ErrorTypes.VALIDATION_ERROR, 400);
   }
 
   try {
@@ -214,67 +178,79 @@ export const uploadVideo = async (filePath: string, file: Blob) => {
       .from('videos')
       .upload(filePath, file);
 
-    if (error) {
-      return createSupabaseResponse(Promise.resolve({
-        data: null,
-        error
-      }));
-    }
+    if (error) throw error;
 
     // Get the public URL
     const { data: publicUrlData } = supabase.storage
       .from('videos')
       .getPublicUrl(filePath);
 
-    return createSupabaseResponse(Promise.resolve({
-      data: { ...data, publicUrl: publicUrlData.publicUrl },
-      error: null
-    }));
+    return { ...data, publicUrl: publicUrlData.publicUrl };
   } catch (error) {
-    return createSupabaseResponse(Promise.resolve({
-      data: null,
-      error
-    }));
+    console.error('Error uploading video:', error);
+    throw error;
   }
 };
 
 // Like a post
 export const likePost = async (postId: string, userId: string) => {
   if (!postId || !userId) {
-    return createSupabaseResponse(Promise.resolve({
-      data: null,
-      error: new AminoError('Post ID and User ID are required', ErrorTypes.VALIDATION_ERROR, 400)
-    }));
+    throw new AminoError('Post ID and User ID are required', ErrorTypes.VALIDATION_ERROR, 400);
   }
 
-  return createSupabaseResponse(
-    supabase
+  try {
+    const { data, error } = await supabase
       .from('post_likes')
       .insert({
         post_id: postId,
         user_id: userId,
       })
-      .select()
-  );
+      .select();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error liking post:', error);
+    throw error;
+  }
 };
 
 // Unlike a post
 export const unlikePost = async (postId: string, userId: string) => {
   if (!postId || !userId) {
-    return createSupabaseResponse(Promise.resolve({
-      data: null,
-      error: new AminoError('Post ID and User ID are required', ErrorTypes.VALIDATION_ERROR, 400)
-    }));
+    throw new AminoError('Post ID and User ID are required', ErrorTypes.VALIDATION_ERROR, 400);
   }
 
-  return createSupabaseResponse(
-    supabase
+  try {
+    const { data, error } = await supabase
       .from('post_likes')
       .delete()
       .eq('post_id', postId)
       .eq('user_id', userId)
+      .select();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error unliking post:', error);
+    throw error;
+  }
+};
+
+export const isLiked = async (postId: string, userId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('post_likes')
       .select()
-  );
+      .eq('post_id', postId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    return data && data.length > 0;
+  } catch (error) {
+    console.error('Error checking like status:', error);
+    throw error;
+  }
 };
 
 export const databaseService = {

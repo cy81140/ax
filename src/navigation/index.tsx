@@ -34,7 +34,7 @@ const AuthNavigator = () => {
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
       <AuthStack.Screen name="Login" component={LoginScreen} />
-      <AuthStack.Screen name="Register" component={RegisterScreen} />
+      <AuthStack.Screen name="Register" component={RegisterScreen as React.ComponentType<any>} />
     </AuthStack.Navigator>
   );
 };
@@ -49,7 +49,7 @@ const ChatNavigator = () => {
       />
       <ChatStack.Screen 
         name="ChatRoom" 
-        component={ChatRoomScreen}
+        component={ChatRoomScreen as React.ComponentType<any>}
         options={({ route }) => ({ 
           title: route.params.roomName,
           headerBackTitle: 'Back',

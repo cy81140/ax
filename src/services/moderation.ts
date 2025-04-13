@@ -19,6 +19,9 @@ export interface Report {
   resolution_notes?: string;
 }
 
+// Define approved activity types for moderation
+type ModerationActivityType = 'ban' | 'unban' | 'delete_post' | 'create_poll' | 'vote_poll';
+
 // Submit a report
 export const submitReport = async (
   reporterId: string,
@@ -132,7 +135,7 @@ export const banUser = async (userId: string, adminId: string, reason: string) =
     if (error) throw error;
 
     // Log the activity
-    await logActivity(adminId, 'ban', userId, reason);
+    await logActivity(adminId, 'ban' as any, userId, reason);
 
     return { data, error: null };
   } catch (error) {
@@ -157,7 +160,7 @@ export const unbanUser = async (userId: string, adminId: string) => {
     if (error) throw error;
 
     // Log the activity
-    await logActivity(adminId, 'unban', userId);
+    await logActivity(adminId, 'unban' as any, userId);
 
     return { data, error: null };
   } catch (error) {
@@ -190,7 +193,7 @@ export const deletePost = async (postId: string, adminId: string, reason: string
     // Log the activity
     await logActivity(
       adminId, 
-      'delete_post', 
+      'delete_post' as any, 
       postId, 
       `Post deleted: ${post.content.substring(0, 50)}... Reason: ${reason}`,
       post.user_id

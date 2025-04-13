@@ -36,7 +36,7 @@ export const SearchScreen = () => {
         <List.Item
           title={item.username || ''}
           description={item.users?.bio || ''}
-          left={(props) => <List.Icon {...props} icon="account" />}
+          left={(props: { color: string; style: any }) => <List.Icon {...props} icon="account" />}
         />
       );
     } else if (item.type === 'post') {
@@ -44,7 +44,7 @@ export const SearchScreen = () => {
         <List.Item
           title={item.content || ''}
           description={new Date(item.created_at).toLocaleString()}
-          left={(props) => <List.Icon {...props} icon="post" />}
+          left={(props: { color: string; style: any }) => <List.Icon {...props} icon="post" />}
         />
       );
     } else {
@@ -52,7 +52,7 @@ export const SearchScreen = () => {
         <List.Item
           title={item.text || ''}
           description={new Date(item.created_at).toLocaleString()}
-          left={(props) => <List.Icon {...props} icon="comment" />}
+          left={(props: { color: string; style: any }) => <List.Icon {...props} icon="comment" />}
         />
       );
     }

@@ -74,4 +74,38 @@ export const userService = {
     if (error) throw error;
     return data?.map(item => item.users) || [];
   }
+};
+
+export const getUserFollowing = async (userId: string): Promise<User[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('follows')
+      .select('following:following_id(*)')
+      .eq('follower_id', userId);
+
+    if (error) throw error;
+
+    // Transform data structure to match User[]
+    return data?.map(item => item.following) || [];
+  } catch (error) {
+    console.error('Error getting user following:', error);
+    throw error;
+  }
+};
+
+export const getUserFollowers = async (userId: string): Promise<User[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('follows')
+      .select('follower:follower_id(*)')
+      .eq('following_id', userId);
+
+    if (error) throw error;
+
+    // Transform data structure to match User[]
+    return data?.map(item => item.follower) || [];
+  } catch (error) {
+    console.error('Error getting user followers:', error);
+    throw error;
+  }
 }; 

@@ -4,12 +4,12 @@ import { Text, TextInput, Button, useTheme } from 'react-native-paper';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { Message } from '../../types/services';
-import { MainStackScreenProps } from '../../types/navigation';
+import { ChatStackScreenProps } from '../../types/navigation';
 
-type Props = MainStackScreenProps<'ChatRoom'>;
+type Props = ChatStackScreenProps<'ChatRoom'>;
 
-export const ChatRoomScreen: React.FC<Props> = ({ route }) => {
-  const { roomId } = route.params;
+export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
+  const { chatId } = route.params;
   const { user } = useAuth();
   const theme = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -29,7 +29,7 @@ export const ChatRoomScreen: React.FC<Props> = ({ route }) => {
     return () => {
       channel.unsubscribe();
     };
-  }, [roomId]);
+  }, [chatId]);
 
   const fetchMessages = async () => {
     try {
@@ -37,7 +37,7 @@ export const ChatRoomScreen: React.FC<Props> = ({ route }) => {
       const { data, error } = await supabase
         .from('messages')
         .select('*, user:users(*)')
-        .eq('room_id', roomId)
+        .eq('room_id', chatId)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -58,7 +58,7 @@ export const ChatRoomScreen: React.FC<Props> = ({ route }) => {
       const { error } = await supabase
         .from('messages')
         .insert({
-          room_id: roomId,
+          room_id: chatId,
           user_id: user.id,
           content: newMessage.trim(),
         });

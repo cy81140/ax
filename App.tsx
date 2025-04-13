@@ -1,10 +1,13 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Provider as PaperProvider } from 'react-native-paper';
-import { AuthProvider } from './src/contexts/AuthContext';
-import { useAuth } from './src/contexts/AuthContext';
-import { LoginScreen } from './src/screens/auth';
+import { AuthStackParamList, RootStackParamList } from './src/types/navigation';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { ThemeProvider } from './src/context/ThemeContext';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { PaperProvider } from 'react-native-paper';
+import { theme } from './src/constants/theme';
+import { LoginScreen, RegisterScreen } from './src/screens/auth';
 import {
   HomeScreen,
   ProfileScreen,
@@ -17,51 +20,74 @@ import {
   SettingsScreen,
   AdminPanelScreen,
 } from './src/screens/main';
-import { MainStackParamList } from './src/types/navigation';
 
-const Stack = createNativeStackNavigator<MainStackParamList>();
+// Create separate stack navigators for better typing
+const RootStack = createNativeStackNavigator<RootStackParamList>();
+const AuthStack = createNativeStackNavigator<AuthStackParamList>();
+
+// Auth Navigator component
+const AuthNavigator = () => {
+  return (
+    <AuthStack.Navigator screenOptions={{ headerShown: false }}>
+      <AuthStack.Screen name="Login" component={LoginScreen} />
+      <AuthStack.Screen name="Register" component={RegisterScreen as React.ComponentType<any>} />
+    </AuthStack.Navigator>
+  );
+};
 
 const AppContent = () => {
   const { user, loading } = useAuth();
 
   if (loading) {
+    // Show loading screen
     return null;
   }
 
   return (
-    <Stack.Navigator>
-      {!user ? (
-        <>
-          <Stack.Screen name="Login" component={LoginScreen} />
-        </>
-      ) : (
-        <>
-          <Stack.Screen name="Home" component={HomeScreen} />
-          <Stack.Screen name="Profile" component={ProfileScreen} />
-          <Stack.Screen name="PostDetails" component={PostDetailsScreen} />
-          <Stack.Screen name="CreatePost" component={CreateScreen} />
-          <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-          <Stack.Screen name="ChatRoom" component={ChatRoomScreen} />
-          <Stack.Screen name="Search" component={SearchScreen} />
-          <Stack.Screen name="Notifications" component={NotificationsScreen} />
-          <Stack.Screen name="Settings" component={SettingsScreen} />
-          <Stack.Screen name="AdminPanel" component={AdminPanelScreen} />
-        </>
-      )}
-    </Stack.Navigator>
+    <NavigationContainer>
+      <RootStack.Navigator screenOptions={{ headerShown: false }}>
+        {user ? (
+          <RootStack.Screen name="Main" component={MainNavigator} />
+        ) : (
+          <RootStack.Screen name="Auth" component={AuthNavigator} />
+        )}
+      </RootStack.Navigator>
+    </NavigationContainer>
   );
 };
 
-const App = () => {
+const MainStack = createNativeStackNavigator();
+
+const MainNavigator = () => {
   return (
-    <PaperProvider>
-      <NavigationContainer>
-        <AuthProvider>
-          <AppContent />
-        </AuthProvider>
-      </NavigationContainer>
-    </PaperProvider>
+    <MainStack.Navigator>
+      <MainStack.Screen name="Home" component={HomeScreen} />
+      <MainStack.Screen name="Profile" component={ProfileScreen} />
+      <MainStack.Screen name="PostDetails" component={PostDetailsScreen as React.ComponentType<any>} />
+      <MainStack.Screen name="CreatePost" component={CreateScreen} />
+      <MainStack.Screen name="EditProfile" component={EditProfileScreen} />
+      <MainStack.Screen name="ChatRoom" component={ChatRoomScreen as React.ComponentType<any>} />
+      <MainStack.Screen name="Search" component={SearchScreen} />
+      <MainStack.Screen name="Notifications" component={NotificationsScreen as React.ComponentType<any>} />
+      <MainStack.Screen name="Settings" component={SettingsScreen} />
+      <MainStack.Screen name="AdminPanel" component={AdminPanelScreen} />
+    </MainStack.Navigator>
   );
 };
 
-export default App; 
+// Export the MainNavigator for use in other files
+export { MainNavigator };
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <PaperProvider theme={theme}>
+        <ThemeProvider>
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
+        </ThemeProvider>
+      </PaperProvider>
+    </SafeAreaProvider>
+  );
+} 

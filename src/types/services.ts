@@ -69,11 +69,11 @@ export interface Message {
   user?: User;
 }
 
-export type ActivityType =
-  | 'post_like'
-  | 'post_comment'
+export type ActivityType = 
+  | 'post'
+  | 'comment'
+  | 'like'
   | 'follow'
-  | 'comment_reply'
   | 'ban'
   | 'unban'
   | 'delete_post'
@@ -86,10 +86,9 @@ export interface Activity {
   user_id: string;
   target_id: string;
   created_at: string;
-  metadata?: Record<string, any>;
-  user?: User;
   post?: Post;
   comment?: Comment;
+  user?: User;
 }
 
 export interface Poll {
@@ -105,7 +104,8 @@ export interface Poll {
 export interface PollOption {
   id: string;
   poll_id: string;
-  text: string;
+  text?: string;
+  option_text?: string;
   votes_count: number;
 }
 

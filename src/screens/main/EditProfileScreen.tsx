@@ -15,7 +15,7 @@ interface ProfileFormData {
   profile_picture?: string;
 }
 
-export const EditProfileScreen = () => {
+export const EditProfileScreen: React.FC = () => {
   const navigation = useNavigation<EditProfileScreenNavigationProp>();
   const { user } = useAuth();
   const theme = useTheme();
@@ -52,14 +52,14 @@ export const EditProfileScreen = () => {
         <TextInput
           label="Username"
           value={formData.username}
-          onChangeText={(text) => setFormData(prev => ({ ...prev, username: text }))}
+          onChangeText={(text: string) => setFormData(prev => ({ ...prev, username: text }))}
           style={styles.input}
         />
 
         <TextInput
           label="Bio"
           value={formData.bio}
-          onChangeText={(text) => setFormData(prev => ({ ...prev, bio: text }))}
+          onChangeText={(text: string) => setFormData(prev => ({ ...prev, bio: text }))}
           multiline
           numberOfLines={4}
           style={styles.input}

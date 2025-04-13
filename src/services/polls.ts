@@ -1,6 +1,10 @@
 import { supabase } from './supabase';
 import { logActivity } from './activity';
 import { isUserAdmin } from './moderation';
+import { Poll as PollType, PollOption as PollOptionType, PollVote as PollVoteType } from '../types/services';
+
+// Define interfaces for the polls feature
+export type PollCreate = Omit<PollType, 'id' | 'created_at' | 'user'>;
 
 export interface PollOption {
   id: string;
@@ -30,53 +34,28 @@ export interface PollVote {
 }
 
 // Create a new poll
-export const createPoll = async (
-  userId: string,
-  postId: string,
-  question: string,
-  options: string[],
-  isMultipleChoice: boolean = false,
-  endsAt: Date | null = null
-) => {
+export const createPoll = async (userId: string, poll: PollCreate) => {
   try {
     // First create the poll
-    const { data: poll, error: pollError } = await supabase
+    const { data, error } = await supabase
       .from('polls')
       .insert({
-        post_id: postId,
         user_id: userId,
-        question,
-        is_multiple_choice: isMultipleChoice,
-        ends_at: endsAt ? endsAt.toISOString() : null,
+        question: poll.question,
+        ends_at: poll.ends_at,
       })
       .select()
       .single();
 
-    if (pollError) throw pollError;
+    if (error) throw error;
 
-    // Then create the options
-    const pollOptionsToInsert = options.map(optionText => ({
-      poll_id: poll.id,
-      option_text: optionText,
-    }));
+    // Log activity
+    await logActivity(userId, 'create_poll' as any, data.id);
 
-    const { data: pollOptions, error: optionsError } = await supabase
-      .from('poll_options')
-      .insert(pollOptionsToInsert)
-      .select();
-
-    if (optionsError) throw optionsError;
-
-    // Log the activity
-    await logActivity(userId, 'create_poll', poll.id);
-
-    return { 
-      data: { ...poll, options: pollOptions }, 
-      error: null 
-    };
+    return data;
   } catch (error) {
     console.error('Error creating poll:', error);
-    return { data: null, error };
+    throw error;
   }
 };
 
@@ -189,54 +168,43 @@ export const getPollResults = async (pollId: string) => {
 };
 
 // Vote on a poll
-export const voteOnPoll = async (
-  userId: string,
-  pollId: string,
-  optionId: string
-) => {
+export const votePoll = async (userId: string, pollId: string, optionId: string) => {
   try {
-    // Check if user already voted on this poll
-    const { data: existingVotes, error: checkError } = await supabase
+    // Check if user has already voted
+    const { data: existingVote, error: checkError } = await supabase
       .from('poll_votes')
-      .select('id')
+      .select()
       .eq('poll_id', pollId)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .maybeSingle();
 
     if (checkError) throw checkError;
 
-    // Get poll to check if multiple choice is allowed
-    const { data: poll, error: pollError } = await supabase
-      .from('polls')
-      .select('is_multiple_choice')
-      .eq('id', pollId)
-      .single();
+    // If user has already voted, update their vote
+    if (existingVote) {
+      const { error: updateError } = await supabase
+        .from('poll_votes')
+        .update({ option_id: optionId })
+        .eq('id', existingVote.id);
 
-    if (pollError) throw pollError;
+      if (updateError) throw updateError;
+    } else {
+      // Otherwise create a new vote
+      const { error: insertError } = await supabase
+        .from('poll_votes')
+        .insert({
+          user_id: userId,
+          poll_id: pollId,
+          option_id: optionId,
+        });
 
-    // If not multiple choice and user already voted, return error
-    if (!poll.is_multiple_choice && existingVotes && existingVotes.length > 0) {
-      return { 
-        data: null, 
-        error: new Error('You have already voted on this poll') 
-      };
+      if (insertError) throw insertError;
     }
 
-    // Create the vote
-    const { data, error } = await supabase
-      .from('poll_votes')
-      .insert({
-        user_id: userId,
-        poll_id: pollId,
-        option_id: optionId,
-      })
-      .select();
+    // Log activity
+    await logActivity(userId, 'vote_poll' as any, pollId);
 
-    if (error) throw error;
-
-    // Log the activity
-    await logActivity(userId, 'vote_poll', pollId);
-
-    return { data, error: null };
+    return { data: true, error: null };
   } catch (error) {
     console.error('Error voting on poll:', error);
     return { data: null, error };

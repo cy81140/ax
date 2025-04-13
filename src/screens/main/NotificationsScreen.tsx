@@ -1,194 +1,75 @@
-import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
-import { List, Text, useTheme, Avatar, Divider, Button } from 'react-native-paper';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, FlatList } from 'react-native';
+import { Text, useTheme, ActivityIndicator } from 'react-native-paper';
 import { useAuth } from '../../contexts/AuthContext';
-import { Notification } from '../../types/services';
-import { supabase } from '../../lib/supabase';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { MainStackParamList } from '../../types/navigation';
+import { activityService } from '../../services/activity';
+import { Activity } from '../../types/services';
+import { MainStackScreenProps } from '../../types/navigation';
 
-type NavigationProp = NativeStackNavigationProp<MainStackParamList>;
+type Props = MainStackScreenProps<'Notifications'>;
 
-export const NotificationsScreen: React.FC = () => {
+export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
   const theme = useTheme();
-  const navigation = useNavigation<NavigationProp>();
   const { user } = useAuth();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchNotifications = async () => {
-    if (!user) return;
-    
+  useEffect(() => {
+    fetchActivities();
+  }, []);
+
+  const fetchActivities = async () => {
     try {
-      setError(null);
-      const { data, error } = await supabase
-        .from('notifications')
-        .select(`
-          *,
-          sender:users!sender_id(*),
-          post:posts(*),
-          comment:comments(*)
-        `)
-        .eq('recipient_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setNotifications(data || []);
+      const data = await activityService.getActivityFeed(user?.id || '');
+      setActivities(data);
     } catch (error) {
-      console.error('Error fetching notifications:', error);
-      setError('Failed to load notifications. Please try again.');
+      console.error('Error fetching activities:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchNotifications();
-
-    const subscription = supabase
-      .channel('notifications')
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'notifications',
-        filter: `recipient_id=eq.${user?.id}`,
-      }, (payload: { new: Notification }) => {
-        const newNotification = payload.new;
-        setNotifications(prev => [newNotification, ...prev]);
-      })
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [user]);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchNotifications();
-    setRefreshing(false);
-  };
-
-  const handleNotificationPress = async (notification: Notification) => {
-    try {
-      // Mark as read
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('id', notification.id);
-
-      if (error) throw error;
-
-      // Navigate based on notification type
-      switch (notification.type) {
-        case 'post_like':
-        case 'post_comment':
-          if (notification.post_id) {
-            navigation.navigate('PostDetails', { postId: notification.post_id });
-          }
-          break;
-        case 'follow':
-          if (notification.sender_id) {
-            navigation.navigate('Profile', { userId: notification.sender_id });
-          }
-          break;
-        case 'comment_reply':
-          if (notification.post_id) {
-            navigation.navigate('PostDetails', {
-              postId: notification.post_id,
-              commentId: notification.comment_id,
-            });
-          }
-          break;
-      }
-    } catch (error) {
-      console.error('Error handling notification:', error);
-    }
-  };
-
-  const renderNotification = ({ item }: { item: Notification }) => {
-    let title = '';
-    let description = '';
-    let icon = '';
-
-    switch (item.type) {
-      case 'post_like':
-        title = `${item.sender?.username} liked your post`;
-        description = item.post?.content?.substring(0, 50) || '';
-        icon = 'heart';
-        break;
-      case 'post_comment':
-        title = `${item.sender?.username} commented on your post`;
-        description = item.comment?.text?.substring(0, 50) || '';
-        icon = 'comment';
-        break;
+  const getActivityTitle = (activity: Activity) => {
+    switch (activity.type) {
+      case 'post':
+        return 'New post';
+      case 'comment':
+        return 'New comment';
+      case 'like':
+        return 'New like';
       case 'follow':
-        title = `${item.sender?.username} started following you`;
-        icon = 'account-plus';
-        break;
-      case 'comment_reply':
-        title = `${item.sender?.username} replied to your comment`;
-        description = item.comment?.text?.substring(0, 50) || '';
-        icon = 'reply';
-        break;
+        return 'New follower';
+      default:
+        return 'New activity';
     }
-
-    return (
-      <>
-        <List.Item
-          title={title}
-          description={description}
-          left={(props: any) => (
-            <Avatar.Image
-              {...props}
-              size={40}
-              source={
-                item.sender?.profile_picture
-                  ? { uri: item.sender.profile_picture }
-                  : require('../../assets/default-avatar.png')
-              }
-            />
-          )}
-          right={(props: any) => (
-            <List.Icon {...props} icon={icon} color={item.read ? theme.colors.outline : theme.colors.primary} />
-          )}
-          onPress={() => handleNotificationPress(item)}
-          style={[
-            styles.notificationItem,
-            !item.read && styles.unreadNotification
-          ]}
-        />
-        <Divider />
-      </>
-    );
   };
 
-  if (!user) {
-    return (
-      <View style={styles.container}>
-        <Text variant="bodyLarge">Please log in to view notifications</Text>
-      </View>
-    );
-  }
+  const handleActivityPress = (activity: Activity) => {
+    if (activity.post) {
+      navigation.navigate('PostDetails', { postId: activity.post.id });
+    } else if (activity.comment) {
+      navigation.navigate('PostDetails', {
+        postId: activity.comment.post_id,
+        commentId: activity.comment.id,
+      });
+    } else if (activity.user) {
+      navigation.navigate('Profile', { userId: activity.user.id });
+    }
+  };
+
+  const renderItem = ({ item }: { item: Activity }) => (
+    <View style={styles.activityItem}>
+      <Text variant="bodyMedium">{getActivityTitle(item)}</Text>
+      <Text variant="bodySmall" style={styles.timestamp}>
+        {new Date(item.created_at).toLocaleString()}
+      </Text>
+    </View>
+  );
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text variant="bodyLarge" style={styles.errorText}>{error}</Text>
-        <Button mode="contained" onPress={fetchNotifications} style={styles.retryButton}>
-          Retry
-        </Button>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" />
       </View>
     );
   }
@@ -196,20 +77,10 @@ export const NotificationsScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <FlatList
-        data={notifications}
-        renderItem={renderNotification}
+        data={activities}
+        renderItem={renderItem}
         keyExtractor={(item) => item.id}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-          />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text variant="bodyLarge">No notifications yet</Text>
-          </View>
-        }
+        contentContainerStyle={styles.list}
       />
     </View>
   );
@@ -220,30 +91,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  centerContainer: {
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
   },
-  notificationItem: {
-    paddingVertical: 8,
+  list: {
+    padding: 16,
   },
-  unreadNotification: {
-    backgroundColor: '#f0f9ff',
+  activityItem: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    color: 'red',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  retryButton: {
-    marginTop: 16,
+  timestamp: {
+    color: '#666',
+    marginTop: 4,
   },
 }); 

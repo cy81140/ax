@@ -71,7 +71,7 @@ export const LoginScreen: React.FC = () => {
           mode="outlined"
           label="Email"
           value={formData.email}
-          onChangeText={(text) => setFormData({ ...formData, email: text })}
+          onChangeText={(text: string) => setFormData({ ...formData, email: text })}
           keyboardType="email-address"
           autoCapitalize="none"
           style={[styles.input, error?.field === 'email' && styles.inputError]}
@@ -81,7 +81,7 @@ export const LoginScreen: React.FC = () => {
           mode="outlined"
           label="Password"
           value={formData.password}
-          onChangeText={(text) => setFormData({ ...formData, password: text })}
+          onChangeText={(text: string) => setFormData({ ...formData, password: text })}
           secureTextEntry
           style={[styles.input, error?.field === 'password' && styles.inputError]}
           error={error?.field === 'password'}
