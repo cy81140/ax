@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert, Platform, Image } from 'react-native';
 import { Text, TextInput, Button, Chip, Portal, Dialog, IconButton } from 'react-native-paper';
 import { theme } from '../../constants/theme';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../contexts/AuthContext';
 import { createPost, uploadImage, uploadVideo } from '../../services/database';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { CreatePollForm } from '../../components/polls';
+import { AminoError, ErrorTypes } from '../../utils/errors';
 
 const CreateScreen = () => {
   const navigation = useNavigation();
@@ -18,6 +19,7 @@ const CreateScreen = () => {
   const [mediaUri, setMediaUri] = useState<string | null>(null);
   const [showPollForm, setShowPollForm] = useState(false);
   const [createdPostId, setCreatedPostId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Request permission for media library
   useEffect(() => {
@@ -47,13 +49,25 @@ const CreateScreen = () => {
         setContentType(isVideo ? 'video' : 'image');
       }
     } catch (error) {
-      console.error('Error picking media:', error);
-      Alert.alert('Error', 'Failed to pick media');
+      const aminoError = new AminoError(
+        'Failed to pick media',
+        ErrorTypes.SYSTEM_ERROR,
+        500,
+        { originalError: error }
+      );
+      setError(aminoError.message);
+      Alert.alert('Error', aminoError.message);
     }
   };
 
   const uploadMedia = async () => {
-    if (!mediaUri || !user) return null;
+    if (!mediaUri || !user) {
+      throw new AminoError(
+        'Media URI and user are required',
+        ErrorTypes.VALIDATION_ERROR,
+        400
+      );
+    }
 
     try {
       const uriParts = mediaUri.split('.');
@@ -75,25 +89,43 @@ const CreateScreen = () => {
         return data?.publicUrl;
       }
     } catch (error) {
-      console.error('Error uploading media:', error);
-      Alert.alert('Error', 'Failed to upload media');
+      const aminoError = new AminoError(
+        'Failed to upload media',
+        ErrorTypes.SYSTEM_ERROR,
+        500,
+        { originalError: error }
+      );
+      setError(aminoError.message);
+      Alert.alert('Error', aminoError.message);
+      return null;
     }
-    
-    return null;
   };
 
   const handleCreatePost = async () => {
     if (!user) {
-      Alert.alert('Error', 'You must be logged in to create a post');
+      const error = new AminoError(
+        'You must be logged in to create a post',
+        ErrorTypes.AUTHENTICATION_ERROR,
+        401
+      );
+      setError(error.message);
+      Alert.alert('Error', error.message);
       return;
     }
     
     if (content.trim() === '' && contentType === 'text') {
-      Alert.alert('Error', 'Post content cannot be empty');
+      const error = new AminoError(
+        'Post content cannot be empty',
+        ErrorTypes.VALIDATION_ERROR,
+        400
+      );
+      setError(error.message);
+      Alert.alert('Error', error.message);
       return;
     }
     
     setLoading(true);
+    setError(null);
     
     try {
       let imageUrl: string | undefined = undefined;
@@ -108,11 +140,9 @@ const CreateScreen = () => {
         }
       }
       
-      // Create the post with appropriate content
-      // For polls, we'll use the question as content in the CreatePollForm
       const { data: postData, error: postError } = await createPost(
         user.id,
-        contentType === 'poll' ? 'Poll: ' + content : content, // Add prefix for poll posts
+        contentType === 'poll' ? 'Poll: ' + content : content,
         imageUrl,
         videoUrl
       );
@@ -120,23 +150,25 @@ const CreateScreen = () => {
       if (postError) throw postError;
       
       if (postData && postData[0]) {
-        // If contentType is poll, show the poll form with this post id
         if (contentType === 'poll') {
           setCreatedPostId(postData[0].id);
           setShowPollForm(true);
-          return; // Don't reset the form yet or navigate away
+          return;
         }
         
-        // Reset the form after successful submission
         resetForm();
-        
-        // Navigate back to the home screen
         Alert.alert('Success', 'Post created successfully');
         navigation.navigate('Home' as never);
       }
     } catch (error) {
-      console.error('Error creating post:', error);
-      Alert.alert('Error', 'Failed to create post');
+      const aminoError = new AminoError(
+        'Failed to create post',
+        ErrorTypes.SYSTEM_ERROR,
+        500,
+        { originalError: error }
+      );
+      setError(aminoError.message);
+      Alert.alert('Error', aminoError.message);
     } finally {
       setLoading(false);
     }
@@ -147,6 +179,7 @@ const CreateScreen = () => {
     setMediaUri(null);
     setContentType('text');
     setCreatedPostId(null);
+    setError(null);
   };
 
   const handlePollCreated = () => {

@@ -1,10 +1,69 @@
 import { createClient } from '@supabase/supabase-js';
-import Constants from 'expo-constants';
+import { AminoError, ErrorTypes, createApiResponse } from '../utils/errors';
 
-const supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl ?? '';
-const supabaseAnonKey = Constants.expoConfig?.extra?.supabaseAnonKey ?? '';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new AminoError(
+    'Missing Supabase environment variables',
+    ErrorTypes.CONFIGURATION_ERROR,
+    500
+  );
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Helper function to handle Supabase errors
+export const handleSupabaseError = (error: any): AminoError => {
+  if (error.code === '23505') {
+    return new AminoError(
+      'Duplicate entry',
+      ErrorTypes.DUPLICATE_ENTRY,
+      409
+    );
+  }
+  
+  if (error.code === '23503') {
+    return new AminoError(
+      'Referenced resource not found',
+      ErrorTypes.NOT_FOUND,
+      404
+    );
+  }
+  
+  if (error.code === '42501') {
+    return new AminoError(
+      'Permission denied',
+      ErrorTypes.PERMISSION_DENIED,
+      403
+    );
+  }
+  
+  return new AminoError(
+    error.message || 'Database error',
+    ErrorTypes.DATABASE_ERROR,
+    500,
+    { originalError: error }
+  );
+};
+
+// Helper function to create API response from Supabase query
+export const createSupabaseResponse = async <T>(
+  query: Promise<{ data: T | null; error: any }>
+): Promise<{ data: T | null; error: AminoError | null }> => {
+  try {
+    const { data, error } = await query;
+    
+    if (error) {
+      return createApiResponse(null, handleSupabaseError(error));
+    }
+    
+    return createApiResponse(data);
+  } catch (error) {
+    return createApiResponse(null, error);
+  }
+};
 
 export type Database = {
   public: {
