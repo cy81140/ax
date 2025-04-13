@@ -10,6 +10,8 @@ import PostDetailsScreen from './PostDetailsScreen';
 import FeedScreen from './FeedScreen';
 import ReportsScreen from './ReportsScreen';
 import AdminPanelScreen from './AdminPanelScreen';
+import NotificationsScreen from './NotificationsScreen';
+import SettingsScreen from './SettingsScreen';
 
 export {
   HomeScreen,
@@ -24,4 +26,6 @@ export {
   FeedScreen,
   ReportsScreen,
   AdminPanelScreen,
+  NotificationsScreen,
+  SettingsScreen,
 }; 

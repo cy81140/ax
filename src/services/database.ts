@@ -1,6 +1,7 @@
 import { supabase, createSupabaseResponse } from './supabase';
 import { createPoll as createPollService } from './polls';
 import { AminoError, ErrorTypes } from '../utils/errors';
+import { Post, Comment, User, Poll, PollOption, PollVote } from '../types/services';
 
 // Posts
 export const createPost = async (userId: string, content: string, imageUrl?: string, videoUrl?: string) => {
@@ -274,4 +275,104 @@ export const unlikePost = async (postId: string, userId: string) => {
       .eq('user_id', userId)
       .select()
   );
+};
+
+export const databaseService = {
+  async createPost(post: Omit<Post, 'id' | 'created_at'>): Promise<Post> {
+    const { data, error } = await supabase
+      .from('posts')
+      .insert([post])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getPost(postId: string): Promise<Post> {
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('id', postId)
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getPosts(userId: string): Promise<Post[]> {
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createComment(comment: Omit<Comment, 'id' | 'created_at'>): Promise<Comment> {
+    const { data, error } = await supabase
+      .from('comments')
+      .insert([comment])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getComments(postId: string): Promise<Comment[]> {
+    const { data, error } = await supabase
+      .from('comments')
+      .select('*')
+      .eq('post_id', postId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createPoll(poll: Omit<Poll, 'id' | 'created_at'>): Promise<Poll> {
+    const { data, error } = await supabase
+      .from('polls')
+      .insert([poll])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async createPollOption(option: Omit<PollOption, 'id'>): Promise<PollOption> {
+    const { data, error } = await supabase
+      .from('poll_options')
+      .insert([option])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async createPollVote(vote: Omit<PollVote, 'id' | 'created_at'>): Promise<PollVote> {
+    const { data, error } = await supabase
+      .from('poll_votes')
+      .insert([vote])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getPollVotes(pollId: string): Promise<PollVote[]> {
+    const { data, error } = await supabase
+      .from('poll_votes')
+      .select('*')
+      .eq('poll_id', pollId);
+
+    if (error) throw error;
+    return data || [];
+  }
 }; 

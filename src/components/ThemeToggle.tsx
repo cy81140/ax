@@ -72,15 +72,15 @@ const styles = StyleSheet.create({
   container: {
     marginVertical: 12,
   },
+  label: {
+    fontSize: 16,
+    marginBottom: 8,
+  },
   switchContainer: {
-    flexDirection: 'row',
     alignItems: 'center',
+    flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 8,
-  },
-  label: {
-    marginBottom: 8,
-    fontSize: 16,
   },
   switchLabel: {
     fontSize: 16,

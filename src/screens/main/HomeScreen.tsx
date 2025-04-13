@@ -176,22 +176,39 @@ const HomeScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
   centerContainer: {
+    alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
+  },
+  container: {
+    backgroundColor: theme.colors.background,
+    flex: 1,
+  },
+  emptyContainer: {
     alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 32,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  footerLoader: {
+    alignItems: 'center',
+    padding: 16,
   },
   header: {
     padding: 16,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.primary,
+  listContent: {
+    paddingBottom: 16,
+  },
+  postActions: {
+    justifyContent: 'space-between',
   },
   postCard: {
     marginHorizontal: 16,
@@ -202,33 +219,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   postImage: {
-    marginTop: 8,
     borderRadius: 8,
-  },
-  postActions: {
-    justifyContent: 'space-between',
+    marginTop: 8,
   },
   separator: {
     height: 8,
   },
-  listContent: {
-    paddingBottom: 16,
-  },
-  footerLoader: {
-    padding: 16,
-    alignItems: 'center',
-  },
-  emptyContainer: {
-    flex: 1,
-    padding: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 18,
+  title: {
+    color: theme.colors.primary,
+    fontSize: 24,
     fontWeight: 'bold',
-    marginTop: 16,
-    marginBottom: 8,
   },
 });
 

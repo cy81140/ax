@@ -1,40 +1,31 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { useTheme } from '../context/ThemeContext';
 import { TouchableOpacity } from 'react-native-gesture-handler';
-import { Text } from 'react-native-paper';
+import { useTheme } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+
+const tabIcons = {
+  Home: 'home',
+  Chat: 'chat',
+  Profile: 'account',
+  Settings: 'cog',
+} as const;
 
 /**
  * A custom themed tab bar component that applies consistent theme styling
  */
-export const ThemedTabBar: React.FC<BottomTabBarProps> = ({ 
-  state,
-  descriptors,
-  navigation 
-}) => {
-  const { theme, isDarkMode } = useTheme();
-  
+export function ThemedTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const theme = useTheme();
+
   return (
-    <View style={[
-      styles.container, 
-      { 
-        backgroundColor: theme.colors.surface,
-        borderTopColor: theme.colors.surfaceVariant,
-      }
-    ]}>
+    <View style={[styles.container, { 
+      backgroundColor: theme.colors.background,
+      borderTopColor: theme.colors.outline
+    }]}>
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
-        const label = options.tabBarLabel || options.title || route.name;
         const isFocused = state.index === index;
-
-        // Get the icon component
-        const Icon = options.tabBarIcon ? 
-          options.tabBarIcon({ 
-            color: isFocused ? theme.colors.primary : theme.colors.onSurface, 
-            size: 24,
-            focused: isFocused 
-          }) : null;
 
         const onPress = () => {
           const event = navigation.emit({
@@ -44,62 +35,44 @@ export const ThemedTabBar: React.FC<BottomTabBarProps> = ({
           });
 
           if (!isFocused && !event.defaultPrevented) {
-            // The `merge: true` option makes sure that the params inside the tab screen are preserved
-            navigation.navigate({ name: route.name, merge: true, params: {} });
+            navigation.navigate(route.name);
           }
         };
 
-        const onLongPress = () => {
-          navigation.emit({
-            type: 'tabLongPress',
-            target: route.key,
-          });
-        };
+        const iconName = tabIcons[route.name as keyof typeof tabIcons];
 
         return (
           <TouchableOpacity
-            key={index}
+            key={route.key}
             accessibilityRole="button"
             accessibilityState={isFocused ? { selected: true } : {}}
             accessibilityLabel={options.tabBarAccessibilityLabel}
             testID={options.tabBarTestID}
             onPress={onPress}
-            onLongPress={onLongPress}
-            style={styles.tabButton}
+            style={styles.tab}
           >
-            {Icon}
-            <Text
-              style={[
-                styles.label,
-                { 
-                  color: isFocused ? theme.colors.primary : theme.colors.onSurface,
-                  opacity: isFocused ? 1 : 0.7
-                }
-              ]}
-            >
-              {label as string}
-            </Text>
+            <MaterialCommunityIcons
+              name={iconName}
+              size={24}
+              color={isFocused ? theme.colors.primary : theme.colors.onSurface}
+            />
           </TouchableOpacity>
         );
       })}
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
+    borderTopWidth: 1,
     flexDirection: 'row',
     height: 60,
-    borderTopWidth: 1,
   },
-  tabButton: {
-    flex: 1,
+  tab: {
     alignItems: 'center',
+    flex: 1,
     justifyContent: 'center',
-  },
-  label: {
-    fontSize: 12,
-    marginTop: 4,
   },
 });
 

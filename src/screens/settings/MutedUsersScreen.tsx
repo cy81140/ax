@@ -164,47 +164,47 @@ const MutedUsersScreen = () => {
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: theme.colors.background,
     flex: 1,
     padding: 16,
-    backgroundColor: theme.colors.background,
   },
-  title: {
-    fontSize: 24,
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  emptyText: {
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 16,
-    color: theme.colors.primary,
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  errorContainer: {
+    backgroundColor: '#ffebee',
+    borderRadius: 4,
+    marginBottom: 10,
+    padding: 10,
+  },
+  errorText: {
+    color: '#c62828',
   },
   listContent: {
     paddingBottom: 16,
   },
   loadingContainer: {
+    alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
   },
   loadingText: {
-    marginTop: 8,
     color: theme.colors.primary,
+    marginTop: 8,
   },
-  emptyContainer: {
-    padding: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: {
-    fontSize: 18,
+  title: {
+    color: theme.colors.primary,
+    fontSize: 24,
     fontWeight: 'bold',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  errorContainer: {
-    padding: 10,
-    marginBottom: 10,
-    backgroundColor: '#ffebee',
-    borderRadius: 4,
-  },
-  errorText: {
-    color: '#c62828',
+    marginBottom: 16,
   },
 });
 

@@ -1,46 +1,36 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, ViewProps } from 'react-native';
-import { fadeIn, fadeOut } from '../../utils/animations';
+import React from 'react';
+import { StyleSheet, View, ViewStyle } from 'react-native';
+import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import { fade } from '../../utils/animations';
 
-interface FadeViewProps extends ViewProps {
-  visible: boolean;
+interface FadeViewProps {
+  children: React.ReactNode;
+  style?: ViewStyle;
   duration?: number;
-  onHidden?: () => void;
+  visible: boolean;
 }
 
-const FadeView: React.FC<FadeViewProps> = ({
-  visible,
+export const FadeView: React.FC<FadeViewProps> = ({ 
+  children, 
+  style, 
   duration = 300,
-  onHidden,
-  style,
-  children,
-  ...props
+  visible 
 }) => {
-  const opacity = useRef(new Animated.Value(visible ? 1 : 0)).current;
-  
-  useEffect(() => {
-    if (visible) {
-      fadeIn(opacity, duration).start();
-    } else {
-      fadeOut(opacity, duration).start(({ finished }) => {
-        if (finished && onHidden) {
-          onHidden();
-        }
-      });
-    }
-  }, [visible, duration, opacity, onHidden]);
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: fade(visible ? 1 : 0, duration),
+    };
+  });
 
   return (
-    <Animated.View
-      style={[
-        style,
-        { opacity }
-      ]}
-      {...props}
-    >
+    <Animated.View style={[styles.container, style, animatedStyle]}>
       {children}
     </Animated.View>
   );
 };
 
-export default FadeView; 
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+}); 

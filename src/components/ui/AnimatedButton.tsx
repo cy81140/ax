@@ -1,73 +1,69 @@
-import React, { useRef } from 'react';
-import { 
-  Animated, 
-  TouchableWithoutFeedback, 
-  StyleSheet, 
-  ViewStyle, 
-  TextStyle, 
-  Text 
-} from 'react-native';
-import { createPressAnimation } from '../../utils/animations';
+import React from 'react';
+import { TouchableOpacity, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { Text, useTheme } from 'react-native-paper';
+import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
 
 interface AnimatedButtonProps {
   onPress: () => void;
-  children?: React.ReactNode;
-  text?: string;
+  title: string;
+  disabled?: boolean;
   style?: ViewStyle;
   textStyle?: TextStyle;
-  disabled?: boolean;
 }
 
-const AnimatedButton: React.FC<AnimatedButtonProps> = ({
+export const AnimatedButton: React.FC<AnimatedButtonProps> = ({
   onPress,
-  children,
-  text,
+  title,
+  disabled = false,
   style,
-  textStyle,
-  disabled = false
+  textStyle
 }) => {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const { onPressIn, onPressOut } = createPressAnimation(scaleAnim);
+  const theme = useTheme();
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: withSpring(disabled ? 0.5 : 1),
+      transform: [{ scale: withSpring(disabled ? 0.95 : 1) }]
+    };
+  });
 
   return (
-    <TouchableWithoutFeedback
-      onPress={disabled ? undefined : onPress}
-      onPressIn={disabled ? undefined : onPressIn}
-      onPressOut={disabled ? undefined : onPressOut}
-    >
-      <Animated.View
+    <Animated.View style={[animatedStyle, style]}>
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={disabled}
         style={[
           styles.button,
-          style,
-          { opacity: disabled ? 0.5 : 1 },
-          { transform: [{ scale: scaleAnim }] }
+          {
+            backgroundColor: theme.colors.primary,
+            shadowColor: theme.colors.shadow
+          }
         ]}
       >
-        {text ? <Text style={[styles.text, textStyle]}>{text}</Text> : children}
-      </Animated.View>
-    </TouchableWithoutFeedback>
+        <Text style={[styles.text, { color: theme.colors.onPrimary }, textStyle]}>
+          {title}
+        </Text>
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   button: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+    padding: 12,
     borderRadius: 8,
-    backgroundColor: '#3498db',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: {
+      width: 0,
+      height: 2
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5
   },
   text: {
-    color: '#ffffff',
     fontSize: 16,
-    fontWeight: '600',
-  },
-});
-
-export default AnimatedButton; 
+    fontWeight: 'bold'
+  }
+}); 

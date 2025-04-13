@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { logActivity } from './activity';
+import { ActivityType } from '../types/services';
 
 // Define report types
 export type ReportType = 'user' | 'post' | 'comment' | 'message';
@@ -273,4 +274,116 @@ export const isUserAdmin = async (userId: string) => {
     console.error('Error checking if user is admin:', error);
     return { isAdmin: false, error };
   }
+};
+
+interface AdminStats {
+  totalUsers: number;
+  totalPosts: number;
+  totalComments: number;
+  totalReports: number;
+  activeUsers: number;
+}
+
+export const moderationService = {
+  async getAdminStats(): Promise<AdminStats> {
+    try {
+      const [
+        { count: totalUsers },
+        { count: totalPosts },
+        { count: totalComments },
+        { count: totalReports },
+        { count: activeUsers },
+      ] = await Promise.all([
+        supabase.from('users').select('*', { count: 'exact', head: true }),
+        supabase.from('posts').select('*', { count: 'exact', head: true }),
+        supabase.from('comments').select('*', { count: 'exact', head: true }),
+        supabase.from('reports').select('*', { count: 'exact', head: true }),
+        supabase
+          .from('posts')
+          .select('user_id', { count: 'exact', head: true })
+          .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
+      ]);
+
+      return {
+        totalUsers: totalUsers || 0,
+        totalPosts: totalPosts || 0,
+        totalComments: totalComments || 0,
+        totalReports: totalReports || 0,
+        activeUsers: activeUsers || 0,
+      };
+    } catch (error) {
+      console.error('Error fetching admin stats:', error);
+      throw new Error('Failed to fetch admin statistics');
+    }
+  },
+
+  async banUser(adminId: string, userId: string, reason: string) {
+    try {
+      const { error: banError } = await supabase
+        .from('users')
+        .update({ is_banned: true })
+        .eq('id', userId);
+
+      if (banError) throw banError;
+
+      await this.logActivity(adminId, 'post_like' as ActivityType, userId, reason);
+    } catch (error) {
+      console.error('Error banning user:', error);
+      throw new Error('Failed to ban user');
+    }
+  },
+
+  async unbanUser(adminId: string, userId: string) {
+    try {
+      const { error: unbanError } = await supabase
+        .from('users')
+        .update({ is_banned: false })
+        .eq('id', userId);
+
+      if (unbanError) throw unbanError;
+
+      await this.logActivity(adminId, 'post_like' as ActivityType, userId);
+    } catch (error) {
+      console.error('Error unbanning user:', error);
+      throw new Error('Failed to unban user');
+    }
+  },
+
+  async deletePost(adminId: string, postId: string, reason: string) {
+    try {
+      const { error: deleteError } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', postId);
+
+      if (deleteError) throw deleteError;
+
+      await this.logActivity(adminId, 'post_like' as ActivityType, postId, reason);
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      throw new Error('Failed to delete post');
+    }
+  },
+
+  async logActivity(
+    adminId: string,
+    type: ActivityType,
+    targetId: string,
+    reason?: string
+  ) {
+    try {
+      const { error } = await supabase.from('admin_activities').insert({
+        admin_id: adminId,
+        type,
+        target_id: targetId,
+        reason,
+        created_at: new Date().toISOString(),
+      });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error logging admin activity:', error);
+      throw new Error('Failed to log admin activity');
+    }
+  },
 }; 

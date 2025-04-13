@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert, Platform, Image } from 'react-native';
-import { Text, TextInput, Button, Chip, Portal, Dialog, IconButton } from 'react-native-paper';
+import { Text, TextInput, Button, Chip, Portal, Dialog, IconButton, useTheme } from 'react-native-paper';
 import { theme } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { createPost, uploadImage, uploadVideo } from '../../services/database';
@@ -9,12 +9,25 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { CreatePollForm } from '../../components/polls';
 import { AminoError, ErrorTypes } from '../../utils/errors';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { MainStackParamList } from '../../types/navigation';
+import { postService } from '../../services/post';
+
+type CreateScreenNavigationProp = NativeStackNavigationProp<MainStackParamList, 'CreatePost'>;
+
+interface PostFormData {
+  content: string;
+  image_url?: string;
+}
 
 const CreateScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<CreateScreenNavigationProp>();
   const { user } = useAuth();
-  const [content, setContent] = useState('');
+  const theme = useTheme();
   const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState<PostFormData>({
+    content: '',
+  });
   const [contentType, setContentType] = useState<'text' | 'image' | 'video' | 'poll'>('text');
   const [mediaUri, setMediaUri] = useState<string | null>(null);
   const [showPollForm, setShowPollForm] = useState(false);
@@ -101,6 +114,26 @@ const CreateScreen = () => {
     }
   };
 
+  const handleSubmit = async () => {
+    if (!user) return;
+    
+    setLoading(true);
+    try {
+      const postData = await postService.createPost({
+        ...formData,
+        user_id: user.id,
+      });
+      
+      if (postData) {
+        navigation.goBack();
+      }
+    } catch (error) {
+      console.error('Error creating post:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCreatePost = async () => {
     if (!user) {
       const error = new AminoError(
@@ -113,7 +146,7 @@ const CreateScreen = () => {
       return;
     }
     
-    if (content.trim() === '' && contentType === 'text') {
+    if (formData.content.trim() === '' && contentType === 'text') {
       const error = new AminoError(
         'Post content cannot be empty',
         ErrorTypes.VALIDATION_ERROR,
@@ -142,7 +175,7 @@ const CreateScreen = () => {
       
       const { data: postData, error: postError } = await createPost(
         user.id,
-        contentType === 'poll' ? 'Poll: ' + content : content,
+        contentType === 'poll' ? 'Poll: ' + formData.content : formData.content,
         imageUrl,
         videoUrl
       );
@@ -175,7 +208,7 @@ const CreateScreen = () => {
   };
 
   const resetForm = () => {
-    setContent('');
+    setFormData({ content: '' });
     setMediaUri(null);
     setContentType('text');
     setCreatedPostId(null);
@@ -204,10 +237,10 @@ const CreateScreen = () => {
         <>
           <TextInput
             label="What's on your mind?"
-            value={content}
-            onChangeText={setContent}
+            value={formData.content}
+            onChangeText={(text) => setFormData(prev => ({ ...prev, content: text }))}
             multiline
-            numberOfLines={5}
+            numberOfLines={4}
             style={styles.input}
           />
           
@@ -268,7 +301,7 @@ const CreateScreen = () => {
             onPress={handleCreatePost}
             style={styles.button}
             loading={loading}
-            disabled={loading || (content.trim() === '' && contentType === 'text')}
+            disabled={loading || (!formData.content.trim() && contentType === 'text')}
           >
             {contentType === 'poll' ? 'Continue to Poll' : 'Post'}
           </Button>
@@ -287,64 +320,64 @@ const CreateScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  button: {
+    backgroundColor: theme.colors.primary,
+    marginBottom: 30,
+    marginTop: 10,
+  },
+  chip: {
+    backgroundColor: theme.colors.surface,
+    marginRight: 10,
+  },
   container: {
+    backgroundColor: theme.colors.background,
     flex: 1,
     padding: 20,
-    backgroundColor: theme.colors.background,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    color: theme.colors.primary,
   },
   input: {
-    marginBottom: 20,
     backgroundColor: theme.colors.surface,
+    marginBottom: 20,
+  },
+  mediaPreview: {
+    borderRadius: 8,
+    height: 200,
+    width: '100%',
   },
   mediaPreviewContainer: {
     marginBottom: 20,
     position: 'relative',
   },
-  mediaPreview: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-  },
-  videoPreviewContainer: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-    backgroundColor: theme.colors.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  removeMediaButton: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
   optionsContainer: {
     marginBottom: 20,
-  },
-  optionsTitle: {
-    fontSize: 16,
-    marginBottom: 10,
-    color: theme.colors.text,
   },
   optionsScroll: {
     flexDirection: 'row',
     marginBottom: 10,
   },
-  chip: {
-    marginRight: 10,
-    backgroundColor: theme.colors.surface,
+  optionsTitle: {
+    color: theme.colors.text,
+    fontSize: 16,
+    marginBottom: 10,
   },
-  button: {
-    marginTop: 10,
-    marginBottom: 30,
-    backgroundColor: theme.colors.primary,
+  removeMediaButton: {
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    position: 'absolute',
+    right: 0,
+    top: 0,
+  },
+  title: {
+    color: theme.colors.primary,
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
+  },
+  videoPreviewContainer: {
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderRadius: 8,
+    height: 200,
+    justifyContent: 'center',
+    width: '100%',
   },
 });
 

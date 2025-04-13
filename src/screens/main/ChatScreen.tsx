@@ -321,38 +321,47 @@ const ChatScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
+  backButton: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginRight: 16,
+  },
+  backText: {
+    color: theme.colors.primary,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  card: {
+    elevation: 2,
+    marginHorizontal: 16,
+    marginVertical: 4,
   },
   centerContainer: {
+    alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
+  },
+  container: {
+    backgroundColor: theme.colors.background,
+    flex: 1,
+  },
+  divider: {
+    marginVertical: 8,
+  },
+  emptyContainer: {
     alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 32,
+  },
+  emptyText: {
+    color: theme.colors.text,
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginTop: 16,
   },
   header: {
     padding: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    color: theme.colors.primary,
-  },
-  searchBar: {
-    marginBottom: 8,
-    backgroundColor: theme.colors.surface,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.text,
   },
   list: {
     flex: 1,
@@ -360,10 +369,20 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 16,
   },
-  card: {
-    marginHorizontal: 16,
-    marginVertical: 4,
-    elevation: 2,
+  searchBar: {
+    backgroundColor: theme.colors.surface,
+    marginBottom: 8,
+  },
+  sectionHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  sectionTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   selectedCard: {
     borderColor: theme.colors.primary,
@@ -372,30 +391,11 @@ const styles = StyleSheet.create({
   separator: {
     height: 4,
   },
-  divider: {
-    marginVertical: 8,
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  backText: {
+  title: {
     color: theme.colors.primary,
-    marginLeft: 4,
+    fontSize: 24,
     fontWeight: 'bold',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: theme.colors.text,
-    marginTop: 16,
+    marginBottom: 16,
   },
 });
 

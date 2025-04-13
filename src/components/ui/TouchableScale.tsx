@@ -1,13 +1,12 @@
-import React, { useRef } from 'react';
-import {
-  TouchableOpacity,
-  TouchableOpacityProps,
-  Animated,
-  StyleSheet,
-} from 'react-native';
-import { createPressAnimation } from '../../utils/animations';
+import React from 'react';
+import { TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
+import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
 
-interface TouchableScaleProps extends TouchableOpacityProps {
+interface TouchableScaleProps {
+  onPress: () => void;
+  children: React.ReactNode;
+  disabled?: boolean;
+  style?: ViewStyle;
   scaleAmount?: number;
   duration?: number;
 }
@@ -16,37 +15,36 @@ interface TouchableScaleProps extends TouchableOpacityProps {
  * A touchable component that scales down when pressed
  */
 export const TouchableScale: React.FC<TouchableScaleProps> = ({
+  onPress,
   children,
+  disabled = false,
   style,
   scaleAmount = 0.95,
-  duration = 100,
-  onPressIn: externalPressIn,
-  onPressOut: externalPressOut,
-  ...props
+  duration = 200
 }) => {
-  const scale = useRef(new Animated.Value(1)).current;
-
-  const handlePressIn = (e: any) => {
-    createPressAnimation(scale, scaleAmount, duration).start();
-    externalPressIn?.(e);
-  };
-
-  const handlePressOut = (e: any) => {
-    createPressAnimation(scale, 1, duration).start();
-    externalPressOut?.(e);
-  };
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: withSpring(disabled ? scaleAmount : 1, { duration }) }],
+      opacity: withSpring(disabled ? 0.5 : 1, { duration })
+    };
+  });
 
   return (
-    <TouchableOpacity
-      activeOpacity={1}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      style={style}
-      {...props}
-    >
-      <Animated.View style={{ transform: [{ scale }] }}>
+    <Animated.View style={[animatedStyle, style]}>
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={disabled}
+        style={styles.touchable}
+      >
         {children}
-      </Animated.View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
-}; 
+};
+
+const styles = StyleSheet.create({
+  touchable: {
+    alignItems: 'center',
+    justifyContent: 'center'
+  }
+}); 

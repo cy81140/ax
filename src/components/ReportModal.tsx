@@ -190,69 +190,21 @@ const ReportModal: React.FC<ReportModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContainer: {
-    width: '90%',
-    maxWidth: 500,
-    maxHeight: '80%',
-    backgroundColor: theme.colors.background,
-    borderRadius: 8,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.outline,
-  },
-  scrollView: {
-    padding: 16,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  reasonItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  textInput: {
-    backgroundColor: theme.colors.surface,
-    marginBottom: 16,
+  button: {
+    marginLeft: 8,
   },
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: 16,
     marginBottom: 24,
-  },
-  button: {
-    marginLeft: 8,
-  },
-  errorText: {
-    color: theme.colors.error,
-    marginTop: 8,
+    marginTop: 16,
   },
   contentPreview: {
     backgroundColor: theme.colors.surfaceVariant,
-    padding: 16,
+    borderRadius: 8,
     marginHorizontal: 16,
     marginTop: 16,
-    borderRadius: 8,
+    padding: 16,
   },
   contentPreviewLabel: {
     fontWeight: 'bold',
@@ -260,6 +212,54 @@ const styles = StyleSheet.create({
   },
   contentPreviewText: {
     fontStyle: 'italic',
+  },
+  errorText: {
+    color: theme.colors.error,
+    marginTop: 8,
+  },
+  modalContainer: {
+    backgroundColor: theme.colors.background,
+    borderRadius: 8,
+    elevation: 5,
+    maxHeight: '80%',
+    maxWidth: 500,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    width: '90%',
+  },
+  modalHeader: {
+    alignItems: 'center',
+    borderBottomColor: theme.colors.outline,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  modalOverlay: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  reasonItem: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    paddingVertical: 8,
+  },
+  scrollView: {
+    padding: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  textInput: {
+    backgroundColor: theme.colors.surface,
+    marginBottom: 16,
   },
 });
 

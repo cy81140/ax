@@ -93,34 +93,34 @@ const ForgotPasswordScreen = ({ navigation }: Props) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: theme.colors.background,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    color: theme.colors.text,
-  },
-  input: {
-    marginBottom: 15,
-  },
   button: {
     marginTop: 10,
   },
+  container: {
+    backgroundColor: theme.colors.background,
+    flex: 1,
+    padding: 20,
+  },
   error: {
     color: theme.colors.error,
+    marginBottom: 15,
+  },
+  input: {
     marginBottom: 15,
   },
   successContainer: {
     alignItems: 'center',
   },
   successText: {
-    textAlign: 'center',
-    marginBottom: 20,
     color: theme.colors.success,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  title: {
+    color: theme.colors.text,
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
   },
 });
 

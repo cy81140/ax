@@ -182,69 +182,6 @@ const PostCard = ({ post, onCommentPress }: PostCardProps) => {
 };
 
 const styles = StyleSheet.create({
-  card: {
-    marginVertical: 8,
-    marginHorizontal: 16,
-    elevation: 2,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  headerText: {
-    marginLeft: 12,
-  },
-  username: {
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  timestamp: {
-    fontSize: 12,
-    color: theme.colors.outline,
-  },
-  content: {
-    fontSize: 16,
-    marginBottom: 12,
-  },
-  image: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-    marginVertical: 8,
-  },
-  videoContainer: {
-    width: '100%',
-    height: 200,
-    backgroundColor: '#000',
-    borderRadius: 8,
-    marginVertical: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  videoText: {
-    color: 'white',
-    marginTop: 8,
-  },
-  pollContainer: {
-    marginTop: 8,
-  },
-  loadingPoll: {
-    padding: 16,
-    alignItems: 'center',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 12,
-  },
-  statsText: {
-    fontSize: 12,
-    color: theme.colors.outline,
-  },
-  divider: {
-    marginVertical: 12,
-  },
   actionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -252,9 +189,72 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: 12,
   },
+  card: {
+    elevation: 2,
+    marginHorizontal: 16,
+    marginVertical: 8,
+  },
+  content: {
+    fontSize: 16,
+    marginBottom: 12,
+  },
+  divider: {
+    marginVertical: 12,
+  },
+  header: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  headerText: {
+    marginLeft: 12,
+  },
+  image: {
+    borderRadius: 8,
+    height: 200,
+    marginVertical: 8,
+    width: '100%',
+  },
   likedText: {
-    fontSize: 12,
     color: theme.colors.primary,
+    fontSize: 12,
+  },
+  loadingPoll: {
+    alignItems: 'center',
+    padding: 16,
+  },
+  pollContainer: {
+    marginTop: 8,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+  },
+  statsText: {
+    color: theme.colors.outline,
+    fontSize: 12,
+  },
+  timestamp: {
+    color: theme.colors.outline,
+    fontSize: 12,
+  },
+  username: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  videoContainer: {
+    alignItems: 'center',
+    backgroundColor: '#000',
+    borderRadius: 8,
+    height: 200,
+    justifyContent: 'center',
+    marginVertical: 8,
+    width: '100%',
+  },
+  videoText: {
+    color: 'white',
+    marginTop: 8,
   },
 });
 

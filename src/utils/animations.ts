@@ -1,3 +1,4 @@
+import { withTiming, withSpring } from 'react-native-reanimated';
 import { Animated, Easing } from 'react-native';
 
 interface AnimationConfig {
@@ -15,41 +16,15 @@ interface AnimationConfig {
 /**
  * Creates a fade animation
  */
-export const fade = (
-  animatedValue: Animated.Value,
-  config: AnimationConfig
-): Animated.CompositeAnimation => {
-  const { toValue, duration = 300, delay = 0, easing = Easing.ease, useNativeDriver = true } = config;
-  
-  return Animated.sequence([
-    Animated.delay(delay),
-    Animated.timing(animatedValue, {
-      toValue,
-      duration,
-      easing,
-      useNativeDriver,
-    }),
-  ]);
+export const fade = (toValue: number, duration: number = 300) => {
+  return withTiming(toValue, { duration });
 };
 
 /**
  * Creates a slide animation
  */
-export const slide = (
-  animatedValue: Animated.Value,
-  config: AnimationConfig
-): Animated.CompositeAnimation => {
-  const { toValue, duration = 500, delay = 0, easing = Easing.out(Easing.cubic), useNativeDriver = true } = config;
-  
-  return Animated.sequence([
-    Animated.delay(delay),
-    Animated.timing(animatedValue, {
-      toValue,
-      duration,
-      easing,
-      useNativeDriver,
-    }),
-  ]);
+export const slide = (toValue: number, duration: number = 300) => {
+  return withTiming(toValue, { duration });
 };
 
 /**
@@ -124,16 +99,12 @@ export const pulse = (
  * @param duration - The duration of the animation in milliseconds
  * @returns Animated.CompositeAnimation
  */
-export const scale = (
-  animatedValue: Animated.Value,
-  toValue: number,
-  duration: number = 100
-): Animated.CompositeAnimation => {
-  return Animated.timing(animatedValue, {
-    toValue,
-    duration,
-    easing: Easing.ease,
-    useNativeDriver: true,
+export const scale = (toValue: number, config = {}) => {
+  return withSpring(toValue, {
+    damping: 15,
+    mass: 1,
+    stiffness: 150,
+    ...config,
   });
 };
 

@@ -187,24 +187,38 @@ const FeedScreen = ({ navigation }: Props) => {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     backgroundColor: theme.colors.background,
-  },
-  loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  },
+  footerLoader: {
+    marginVertical: 20,
   },
   listContent: {
     padding: 10,
   },
+  loadingContainer: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+  },
   postCard: {
     marginBottom: 10,
   },
-  postHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  postContent: {
+    fontSize: 16,
     marginBottom: 10,
+  },
+  postDate: {
+    color: theme.colors.onSurface,
+    fontSize: 12,
+  },
+  postHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginBottom: 10,
+  },
+  postImage: {
+    marginTop: 10,
   },
   postUserInfo: {
     marginLeft: 10,
@@ -212,20 +226,6 @@ const styles = StyleSheet.create({
   postUsername: {
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  postDate: {
-    fontSize: 12,
-    color: theme.colors.onSurface,
-  },
-  postContent: {
-    fontSize: 16,
-    marginBottom: 10,
-  },
-  postImage: {
-    marginTop: 10,
-  },
-  footerLoader: {
-    marginVertical: 20,
   },
 });
 

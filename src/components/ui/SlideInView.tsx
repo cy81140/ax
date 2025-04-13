@@ -1,88 +1,61 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, ViewProps } from 'react-native';
-import { slide } from '../../utils/animations';
+import React, { useEffect } from 'react';
+import { View, StyleSheet, ViewStyle } from 'react-native';
+import Animated, { 
+  useAnimatedStyle, 
+  withSpring,
+  useSharedValue,
+  withTiming
+} from 'react-native-reanimated';
 
-type SlideDirection = 'left' | 'right' | 'up' | 'down';
-
-interface SlideInViewProps extends ViewProps {
-  /**
-   * Direction to slide from
-   * @default 'left'
-   */
-  direction?: SlideDirection;
-  
-  /**
-   * Duration of the animation in milliseconds
-   * @default 500
-   */
+interface SlideInViewProps {
+  children: React.ReactNode;
+  style?: ViewStyle;
+  from?: 'left' | 'right' | 'top' | 'bottom';
   duration?: number;
-  
-  /**
-   * Delay before starting the animation in milliseconds
-   * @default 0
-   */
-  delay?: number;
-  
-  /**
-   * Distance to slide in pixels
-   * @default 100
-   */
-  distance?: number;
 }
 
-/**
- * A view that slides in its children when mounted
- */
 export const SlideInView: React.FC<SlideInViewProps> = ({
   children,
-  direction = 'left',
-  duration = 500,
-  delay = 0,
-  distance = 100,
   style,
-  ...props
+  from = 'left',
+  duration = 300
 }) => {
-  const translateX = useRef(new Animated.Value(direction === 'left' ? -distance : direction === 'right' ? distance : 0)).current;
-  const translateY = useRef(new Animated.Value(direction === 'up' ? -distance : direction === 'down' ? distance : 0)).current;
-  
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+
   useEffect(() => {
-    const animationX = slide(translateX, {
-      toValue: 0,
-      duration,
-      delay,
-    });
-    
-    const animationY = slide(translateY, {
-      toValue: 0,
-      duration,
-      delay,
-    });
-    
-    animationX.start();
-    animationY.start();
-    
-    return () => {
-      animationX.stop();
-      animationY.stop();
+    const initialValue = 100;
+    const finalValue = 0;
+
+    if (from === 'left' || from === 'right') {
+      translateX.value = from === 'left' ? -initialValue : initialValue;
+      translateX.value = withTiming(finalValue, { duration });
+    } else {
+      translateY.value = from === 'top' ? -initialValue : initialValue;
+      translateY.value = withTiming(finalValue, { duration });
+    }
+  }, [from, duration]);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateX: translateX.value },
+        { translateY: translateY.value }
+      ]
     };
-  }, [translateX, translateY, duration, delay]);
-  
+  });
+
   return (
-    <Animated.View
-      style={[
-        {
-          transform: [
-            { translateX },
-            { translateY },
-          ],
-        },
-        style,
-      ]}
-      {...props}
-    >
+    <Animated.View style={[styles.container, style, animatedStyle]}>
       {children}
     </Animated.View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});
 
 export default SlideInView; 

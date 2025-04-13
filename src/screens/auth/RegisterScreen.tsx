@@ -118,36 +118,36 @@ const RegisterScreen = ({ navigation }: Props) => {
 };
 
 const styles = StyleSheet.create({
-  scrollContainer: {
-    flexGrow: 1,
+  button: {
+    backgroundColor: theme.colors.primary,
+    marginTop: 8,
   },
   container: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'center',
     backgroundColor: theme.colors.background,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-    color: theme.colors.primary,
-  },
-  input: {
-    marginBottom: 16,
-    backgroundColor: theme.colors.surface,
-  },
-  button: {
-    marginTop: 8,
-    backgroundColor: theme.colors.primary,
-  },
-  link: {
-    marginTop: 16,
+    flex: 1,
+    justifyContent: 'center',
+    padding: 20,
   },
   error: {
     color: theme.colors.error,
     marginBottom: 16,
+    textAlign: 'center',
+  },
+  input: {
+    backgroundColor: theme.colors.surface,
+    marginBottom: 16,
+  },
+  link: {
+    marginTop: 16,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+  },
+  title: {
+    color: theme.colors.primary,
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
     textAlign: 'center',
   },
 });

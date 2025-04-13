@@ -406,85 +406,85 @@ const ReportManagementScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-    backgroundColor: theme.colors.background,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    color: theme.colors.primary,
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'flex-end',
+    marginTop: 16,
   },
   card: {
-    marginBottom: 8,
     backgroundColor: theme.colors.surface,
+    marginBottom: 8,
   },
-  reportHeader: {
-    fontSize: 16,
-    fontWeight: 'bold',
+  container: {
+    backgroundColor: theme.colors.background,
+    flex: 1,
+    padding: 16,
   },
-  reportDate: {
-    fontSize: 12,
-    color: theme.colors.outline,
-    marginTop: 4,
+  dialogInput: {
+    backgroundColor: theme.colors.surfaceVariant,
+    marginTop: 8,
   },
   divider: {
     marginVertical: 12,
   },
-  reportDetails: {
-    marginBottom: 8,
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
   },
-  reportLabel: {
+  emptyText: {
+    fontSize: 18,
     fontWeight: 'bold',
-    fontSize: 14,
-  },
-  reportValue: {
-    fontSize: 14,
-    marginTop: 2,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
+    marginBottom: 8,
     marginTop: 16,
-    gap: 8,
+  },
+  errorContainer: {
+    backgroundColor: '#ffebee',
+    borderRadius: 4,
+    marginBottom: 10,
+    padding: 10,
+  },
+  errorText: {
+    color: '#c62828',
   },
   listContent: {
     paddingBottom: 16,
   },
   loadingContainer: {
+    alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
   },
   loadingText: {
-    marginTop: 8,
     color: theme.colors.primary,
+    marginTop: 8,
   },
-  emptyContainer: {
-    padding: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+  reportDate: {
+    color: theme.colors.outline,
+    fontSize: 12,
+    marginTop: 4,
   },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: 16,
+  reportDetails: {
     marginBottom: 8,
   },
-  errorContainer: {
-    padding: 10,
-    marginBottom: 10,
-    backgroundColor: '#ffebee',
-    borderRadius: 4,
+  reportHeader: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
-  errorText: {
-    color: '#c62828',
+  reportLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
   },
-  dialogInput: {
-    marginTop: 8,
-    backgroundColor: theme.colors.surfaceVariant,
+  reportValue: {
+    fontSize: 14,
+    marginTop: 2,
+  },
+  title: {
+    color: theme.colors.primary,
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 16,
   },
 });
 

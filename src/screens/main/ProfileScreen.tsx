@@ -153,41 +153,41 @@ const ProfileScreen = () => {
 
 // Create styles function that takes theme as a parameter
 const createStyles = (theme: any) => StyleSheet.create({
+  adminBadge: {
+    color: theme.colors.primary,
+    fontWeight: 'bold',
+    marginTop: 4,
+  },
   container: {
-    flex: 1,
     backgroundColor: theme.colors.background,
+    flex: 1,
+  },
+  email: {
+    fontSize: 14,
+    opacity: 0.8,
+  },
+  menuCard: {
+    margin: 16,
   },
   profileCard: {
     margin: 16,
     padding: 16,
   },
   profileHeader: {
-    flexDirection: 'row',
     alignItems: 'center',
+    flexDirection: 'row',
     marginBottom: 16,
   },
   profileInfo: {
-    marginLeft: 16,
     flex: 1,
-  },
-  username: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  email: {
-    fontSize: 14,
-    opacity: 0.8,
-  },
-  adminBadge: {
-    marginTop: 4,
-    color: theme.colors.primary,
-    fontWeight: 'bold',
+    marginLeft: 16,
   },
   settingsButton: {
     marginLeft: 8,
   },
-  menuCard: {
-    margin: 16,
+  username: {
+    fontSize: 24,
+    fontWeight: 'bold',
   },
 });
 

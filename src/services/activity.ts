@@ -1,20 +1,56 @@
 import { supabase } from './supabase';
+import { Post, User, Comment } from '../types/services';
 
-export interface ActivityItem {
+export type ActivityType = 'post' | 'comment' | 'like' | 'follow';
+
+export interface Activity {
   id: string;
-  type: 'new_post' | 'new_comment' | 'like' | 'follow' | 'ban' | 'unban' | 'delete_post' | 'report' | 'create_poll' | 'vote_poll';
+  type: ActivityType;
+  user_id: string;
+  target_id: string;
   created_at: string;
-  actor_id: string;
-  actor: {
-    username: string;
-    profile_picture: string | null;
-  };
-  target_id: string; // post_id, comment_id, or user_id depending on type
-  target_content?: string;
-  target_user?: {
-    username: string;
-  };
+  post?: Post;
+  comment?: Comment;
+  user?: User;
 }
+
+export const activityService = {
+  async getActivityFeed(userId: string): Promise<Activity[]> {
+    const { data, error } = await supabase
+      .from('activities')
+      .select(`
+        *,
+        post:posts(*),
+        comment:comments(*),
+        user:users(*)
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createActivity(activity: Omit<Activity, 'id' | 'created_at'>): Promise<Activity> {
+    const { data, error } = await supabase
+      .from('activities')
+      .insert([activity])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteActivity(activityId: string): Promise<void> {
+    const { error } = await supabase
+      .from('activities')
+      .delete()
+      .eq('id', activityId);
+
+    if (error) throw error;
+  }
+};
 
 // Get the main activity feed (recent posts, comments, likes)
 export const getActivityFeed = async (limit = 20, offset = 0) => {
@@ -38,7 +74,7 @@ export const getActivityFeed = async (limit = 20, offset = 0) => {
     if (error) throw error;
 
     // Format the data to match our expected types
-    const formattedData: ActivityItem[] = data.map((item: any) => {
+    const formattedData: Activity[] = data.map((item: any) => {
       const actorData = Array.isArray(item.users) ? item.users[0] : item.users;
       const targetUserData = item.target_user 
         ? (Array.isArray(item.target_user) ? item.target_user[0] : item.target_user)
@@ -48,16 +84,21 @@ export const getActivityFeed = async (limit = 20, offset = 0) => {
         id: item.id,
         type: item.type,
         created_at: item.created_at,
-        actor_id: item.actor_id,
-        actor: {
+        user_id: item.actor_id,
+        target_id: item.target_id,
+        user: {
+          id: item.actor_id,
           username: actorData?.username || 'Unknown user',
           profile_picture: actorData?.profile_picture || null,
+          created_at: item.created_at,
+          email: '',
         },
-        target_id: item.target_id,
-        target_content: item.target_content,
         ...(targetUserData && {
           target_user: {
+            id: item.target_user_id,
             username: targetUserData.username || 'Unknown user',
+            created_at: item.created_at,
+            email: '',
           }
         })
       };
@@ -92,7 +133,7 @@ export const getUserActivity = async (userId: string, limit = 20, offset = 0) =>
     if (error) throw error;
 
     // Format the data to match our expected types
-    const formattedData: ActivityItem[] = data.map((item: any) => {
+    const formattedData: Activity[] = data.map((item: any) => {
       const actorData = Array.isArray(item.users) ? item.users[0] : item.users;
       const targetUserData = item.target_user 
         ? (Array.isArray(item.target_user) ? item.target_user[0] : item.target_user)
@@ -102,16 +143,21 @@ export const getUserActivity = async (userId: string, limit = 20, offset = 0) =>
         id: item.id,
         type: item.type,
         created_at: item.created_at,
-        actor_id: item.actor_id,
-        actor: {
+        user_id: item.actor_id,
+        target_id: item.target_id,
+        user: {
+          id: item.actor_id,
           username: actorData?.username || 'Unknown user',
           profile_picture: actorData?.profile_picture || null,
+          created_at: item.created_at,
+          email: '',
         },
-        target_id: item.target_id,
-        target_content: item.target_content,
         ...(targetUserData && {
           target_user: {
+            id: item.target_user_id,
             username: targetUserData.username || 'Unknown user',
+            created_at: item.created_at,
+            email: '',
           }
         })
       };
@@ -143,7 +189,7 @@ export const subscribeToActivity = (callback: (payload: any) => void) => {
 // Log an activity
 export const logActivity = async (
   actorId: string,
-  type: ActivityItem['type'],
+  type: ActivityType,
   targetId: string,
   targetContent?: string,
   targetUserId?: string

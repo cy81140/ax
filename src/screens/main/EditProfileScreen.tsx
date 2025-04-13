@@ -1,119 +1,39 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Image } from 'react-native';
-import { TextInput, Button, Text, Avatar, IconButton } from 'react-native-paper';
-import { supabase } from '../../services/supabase';
-import { theme } from '../../constants/theme';
-import { useAuth } from '../../hooks/useAuth';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ProfileStackParamList } from '../../navigation/types';
-import * as ImagePicker from 'expo-image-picker';
+import React, { useState } from 'react';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { TextInput, Button, Avatar, useTheme } from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { MainStackParamList } from '../../types/navigation';
+import { useAuth } from '../../contexts/AuthContext';
+import { userService } from '../../services/user';
 
-type Props = NativeStackScreenProps<ProfileStackParamList, 'EditProfile'>;
+type EditProfileScreenNavigationProp = NativeStackNavigationProp<MainStackParamList, 'EditProfile'>;
 
-interface ProfileData {
+interface ProfileFormData {
   username: string;
   bio: string;
-  profile_picture: string | null;
+  profile_picture?: string;
 }
 
-const EditProfileScreen = ({ navigation }: Props) => {
+export const EditProfileScreen = () => {
+  const navigation = useNavigation<EditProfileScreenNavigationProp>();
   const { user } = useAuth();
+  const theme = useTheme();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [profileData, setProfileData] = useState<ProfileData>({
+  const [formData, setFormData] = useState<ProfileFormData>({
     username: '',
     bio: '',
-    profile_picture: null,
   });
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('username, bio, profile_picture')
-        .eq('id', user?.id)
-        .single();
-
-      if (error) throw error;
-
-      if (data) {
-        setProfileData(data);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load profile');
-    }
-  };
-
-  const handleImagePick = async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        setError('Permission to access media library was denied');
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.5,
-      });
-
-      if (!result.canceled) {
-        setProfileData(prev => ({
-          ...prev,
-          profile_picture: result.assets[0].uri,
-        }));
-      }
-    } catch (err) {
-      setError('Failed to pick image');
-    }
-  };
-
-  const handleSave = async () => {
-    if (!profileData.username) {
-      setError('Username is required');
-      return;
-    }
-
+  const handleSubmit = async () => {
+    if (!user) return;
+    
     setLoading(true);
-    setError(null);
-
     try {
-      let profilePictureUrl = profileData.profile_picture;
-
-      // Upload new profile picture if it's a local URI
-      if (profileData.profile_picture?.startsWith('file://')) {
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('profile-pictures')
-          .upload(`${user?.id}/${Date.now()}.jpg`, {
-            uri: profileData.profile_picture,
-            type: 'image/jpeg',
-          });
-
-        if (uploadError) throw uploadError;
-
-        profilePictureUrl = uploadData.path;
-      }
-
-      const { error } = await supabase
-        .from('users')
-        .update({
-          username: profileData.username,
-          bio: profileData.bio,
-          profile_picture: profilePictureUrl,
-        })
-        .eq('id', user?.id);
-
-      if (error) throw error;
-
+      await userService.updateProfile(user.id, formData);
       navigation.goBack();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update profile');
+    } catch (error) {
+      console.error('Error updating profile:', error);
     } finally {
       setLoading(false);
     }
@@ -121,59 +41,40 @@ const EditProfileScreen = ({ navigation }: Props) => {
 
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Edit Profile</Text>
-      </View>
-
-      {error && (
-        <Text style={styles.error}>{error}</Text>
-      )}
-
-      <View style={styles.avatarContainer}>
-        {profileData.profile_picture ? (
-          <Image
-            source={{ uri: profileData.profile_picture }}
-            style={styles.avatar}
-          />
-        ) : (
-          <Avatar.Text
+      <View style={styles.form}>
+        <View style={styles.avatarContainer}>
+          <Avatar.Image
             size={100}
-            label={profileData.username.slice(0, 2).toUpperCase()}
+            source={{ uri: formData.profile_picture || 'https://via.placeholder.com/100' }}
           />
-        )}
-        <IconButton
-          icon="camera"
-          size={24}
-          onPress={handleImagePick}
-          style={styles.cameraButton}
+        </View>
+
+        <TextInput
+          label="Username"
+          value={formData.username}
+          onChangeText={(text) => setFormData(prev => ({ ...prev, username: text }))}
+          style={styles.input}
         />
+
+        <TextInput
+          label="Bio"
+          value={formData.bio}
+          onChangeText={(text) => setFormData(prev => ({ ...prev, bio: text }))}
+          multiline
+          numberOfLines={4}
+          style={styles.input}
+        />
+        
+        <Button
+          mode="contained"
+          onPress={handleSubmit}
+          loading={loading}
+          disabled={!formData.username.trim()}
+          style={styles.button}
+        >
+          Save Changes
+        </Button>
       </View>
-
-      <TextInput
-        label="Username"
-        value={profileData.username}
-        onChangeText={(text) => setProfileData(prev => ({ ...prev, username: text }))}
-        style={styles.input}
-      />
-
-      <TextInput
-        label="Bio"
-        value={profileData.bio}
-        onChangeText={(text) => setProfileData(prev => ({ ...prev, bio: text }))}
-        multiline
-        numberOfLines={4}
-        style={styles.input}
-      />
-
-      <Button
-        mode="contained"
-        onPress={handleSave}
-        loading={loading}
-        disabled={loading}
-        style={styles.button}
-      >
-        Save Changes
-      </Button>
     </ScrollView>
   );
 };
@@ -181,45 +82,19 @@ const EditProfileScreen = ({ navigation }: Props) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#fff',
   },
-  header: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.surfaceVariant,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.text,
+  form: {
+    padding: 16,
   },
   avatarContainer: {
     alignItems: 'center',
-    marginVertical: 20,
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-  },
-  cameraButton: {
-    position: 'absolute',
-    bottom: 0,
-    right: '35%',
-    backgroundColor: theme.colors.primary,
+    marginBottom: 16,
   },
   input: {
-    marginHorizontal: 20,
-    marginBottom: 15,
+    marginBottom: 16,
   },
   button: {
-    margin: 20,
+    marginTop: 8,
   },
-  error: {
-    color: theme.colors.error,
-    marginHorizontal: 20,
-    marginBottom: 15,
-  },
-});
-
-export default EditProfileScreen; 
+}); 

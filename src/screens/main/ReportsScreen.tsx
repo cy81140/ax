@@ -205,24 +205,42 @@ const ReportsScreen = ({ navigation }: Props) => {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     backgroundColor: theme.colors.background,
-  },
-  loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  },
+  error: {
+    color: theme.colors.error,
+    margin: 10,
+    textAlign: 'center',
   },
   listContent: {
     padding: 10,
   },
+  loadingContainer: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+  },
   reportCard: {
     marginBottom: 10,
   },
+  reportDate: {
+    color: theme.colors.onSurface,
+    fontSize: 12,
+  },
   reportHeader: {
-    flexDirection: 'row',
     alignItems: 'center',
+    flexDirection: 'row',
     marginBottom: 10,
+  },
+  reportReason: {
+    fontSize: 14,
+    marginBottom: 10,
+  },
+  reportType: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 5,
   },
   reportUserInfo: {
     flex: 1,
@@ -232,52 +250,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  reportDate: {
-    fontSize: 12,
-    color: theme.colors.onSurface,
-  },
-  statusChip: {
-    marginLeft: 10,
-  },
-  statusText: {
-    color: theme.colors.white,
-  },
-  reportType: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginBottom: 5,
-  },
-  reportReason: {
-    fontSize: 14,
-    marginBottom: 10,
-  },
   reportedContent: {
-    marginTop: 10,
-    padding: 10,
     backgroundColor: theme.colors.surface,
     borderRadius: 8,
+    marginTop: 10,
+    padding: 10,
+  },
+  reportedContentText: {
+    fontSize: 14,
+    marginBottom: 10,
   },
   reportedContentTitle: {
     fontSize: 14,
     fontWeight: 'bold',
     marginBottom: 5,
   },
-  reportedContentText: {
-    fontSize: 14,
-    marginBottom: 10,
-  },
   reportedUser: {
-    flexDirection: 'row',
     alignItems: 'center',
+    flexDirection: 'row',
   },
   reportedUsername: {
-    marginLeft: 10,
     fontSize: 14,
+    marginLeft: 10,
   },
-  error: {
-    color: theme.colors.error,
-    margin: 10,
-    textAlign: 'center',
+  statusChip: {
+    marginLeft: 10,
+  },
+  statusText: {
+    color: theme.colors.white,
   },
 });
 

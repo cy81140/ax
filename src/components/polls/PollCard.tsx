@@ -203,64 +203,64 @@ const styles = StyleSheet.create({
   card: {
     marginVertical: 8,
   },
+  errorText: {
+    color: theme.colors.error,
+    marginTop: 8,
+  },
+  optionRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginVertical: 4,
+  },
+  optionText: {
+    flex: 1,
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  optionsContainer: {
+    marginTop: 8,
+  },
+  pollEndedText: {
+    color: theme.colors.error,
+    fontStyle: 'italic',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  progressBar: {
+    borderRadius: 5,
+    height: 10,
+  },
   question: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 16,
   },
-  optionsContainer: {
-    marginTop: 8,
-  },
-  optionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 4,
-  },
-  optionText: {
-    fontSize: 16,
-    marginLeft: 8,
-    flex: 1,
-  },
-  voteButton: {
+  refreshButton: {
     marginTop: 16,
-    alignSelf: 'flex-end',
   },
-  errorText: {
-    color: theme.colors.error,
-    marginTop: 8,
-  },
-  resultsContainer: {
-    marginTop: 8,
+  resultLabelRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
   },
   resultRow: {
     marginVertical: 8,
   },
-  resultLabelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  voteCount: {
-    fontSize: 14,
-    color: theme.colors.outline,
-  },
-  progressBar: {
-    height: 10,
-    borderRadius: 5,
+  resultsContainer: {
+    marginTop: 8,
   },
   totalVotes: {
     marginTop: 16,
     textAlign: 'center',
   },
-  pollEndedText: {
+  voteButton: {
+    alignSelf: 'flex-end',
     marginTop: 16,
-    textAlign: 'center',
-    fontStyle: 'italic',
-    color: theme.colors.error,
   },
-  refreshButton: {
-    marginTop: 16,
+  voteCount: {
+    color: theme.colors.outline,
+    fontSize: 14,
   },
 });
 

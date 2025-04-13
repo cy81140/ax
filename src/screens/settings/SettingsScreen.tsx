@@ -109,12 +109,12 @@ const SettingsScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  card: {
+    elevation: 2,
+    margin: 10,
+  },
   container: {
     flex: 1,
-  },
-  card: {
-    margin: 10,
-    elevation: 2,
   },
 });
 

@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 import { uploadImage } from './database';
+import { ChatMessage, ChatRoom } from '../types/services';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 // Regions
 export const getRegions = async () => {
@@ -317,16 +319,16 @@ export const getReadReceipts = async (groupId: string, messageId: string) => {
 };
 
 // Realtime subscriptions
-export const subscribeToMessages = (groupId: string, callback: (payload: any) => void) => {
+export const subscribeToMessages = (groupId: string, callback: (payload: { new: ChatMessage }) => void) => {
   return supabase
-    .channel(`messages:${groupId}`)
+    .channel(`room:${groupId}`)
     .on(
       'postgres_changes',
       {
-        event: '*',
+        event: 'INSERT',
         schema: 'public',
-        table: 'messages',
-        filter: `group_id=eq.${groupId}`,
+        table: 'chat_messages',
+        filter: `room_id=eq.${groupId}`
       },
       callback
     )
@@ -363,4 +365,77 @@ export const subscribeToReadReceipts = (groupId: string, callback: (payload: any
       callback
     )
     .subscribe();
+};
+
+export const chatService = {
+  async getRooms(userId: string): Promise<ChatRoom[]> {
+    const { data, error } = await supabase
+      .from('chat_rooms')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getMessages(roomId: string): Promise<ChatMessage[]> {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select('*')
+      .eq('room_id', roomId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async sendMessage(message: Omit<ChatMessage, 'id' | 'created_at'>): Promise<ChatMessage> {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .insert([message])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async createRoom(room: Omit<ChatRoom, 'id' | 'created_at'>): Promise<ChatRoom> {
+    const { data, error } = await supabase
+      .from('chat_rooms')
+      .insert([room])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async markMessagesAsRead(roomId: string, userId: string): Promise<void> {
+    const { error } = await supabase
+      .from('chat_messages')
+      .update({ read: true })
+      .eq('room_id', roomId)
+      .eq('user_id', userId)
+      .eq('read', false);
+
+    if (error) throw error;
+  },
+
+  subscribeToMessages(roomId: string, callback: (payload: { new: ChatMessage }) => void): RealtimeChannel {
+    return supabase
+      .channel(`room:${roomId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `room_id=eq.${roomId}`
+        },
+        callback
+      )
+      .subscribe();
+  }
 }; 

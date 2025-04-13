@@ -213,63 +213,63 @@ const CreatePollForm = ({ postId, onPollCreated, onCancel }: CreatePollFormProps
 };
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 16,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  subtitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  input: {
-    marginBottom: 8,
-  },
-  optionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  optionInput: {
-    flex: 1,
-  },
   addButton: {
     alignSelf: 'flex-start',
     marginTop: 8,
   },
-  divider: {
-    marginVertical: 16,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginVertical: 8,
-  },
-  datePickerContainer: {
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  dateButton: {
-    alignSelf: 'flex-start',
+  button: {
+    flex: 1,
+    marginHorizontal: 4,
   },
   buttonRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 24,
   },
-  button: {
-    flex: 1,
-    marginHorizontal: 4,
+  container: {
+    padding: 16,
+  },
+  dateButton: {
+    alignSelf: 'flex-start',
+  },
+  datePickerContainer: {
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  divider: {
+    marginVertical: 16,
   },
   errorText: {
     color: theme.colors.error,
     marginVertical: 8,
+  },
+  input: {
+    marginBottom: 8,
+  },
+  optionInput: {
+    flex: 1,
+  },
+  optionRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  switchRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 8,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
   },
 });
 

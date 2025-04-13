@@ -1,259 +1,179 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Image, FlatList } from 'react-native';
-import { Text, Card, Avatar, Button, TextInput, IconButton } from 'react-native-paper';
-import { supabase } from '../../services/supabase';
-import { theme } from '../../constants/theme';
-import { useAuth } from '../../hooks/useAuth';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { HomeStackParamList } from '../../navigation/types';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { View, StyleSheet, FlatList } from 'react-native';
+import { Text, TextInput, Button, useTheme, ActivityIndicator } from 'react-native-paper';
+import { useAuth } from '../../contexts/AuthContext';
+import { Post, Comment } from '../../types/services';
+import { postService } from '../../services/post';
+import { commentService } from '../../services/comment';
+import { MainStackScreenProps } from '../../types/navigation';
+import { PostActions } from '../../components/posts/PostActions';
 
-type Props = NativeStackScreenProps<HomeStackParamList, 'PostDetails'>;
+type Props = MainStackScreenProps<'PostDetails'>;
 
-interface Comment {
-  id: string;
-  content: string;
-  created_at: string;
-  user: {
-    username: string;
-    profile_picture: string | null;
-  };
-}
-
-interface Post {
-  id: string;
-  content: string;
-  image_url: string | null;
-  video_url: string | null;
-  created_at: string;
-  user: {
-    username: string;
-    profile_picture: string | null;
-  };
-  likes: number;
-  comments: number;
-}
-
-const PostDetailsScreen = ({ route, navigation }: Props) => {
+export const PostDetailsScreen: React.FC<Props> = ({ route }) => {
   const { postId } = route.params;
+  const theme = useTheme();
   const { user } = useAuth();
   const [post, setPost] = useState<Post | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
 
   useEffect(() => {
-    loadPost();
-    loadComments();
+    fetchPost();
+    fetchComments();
   }, [postId]);
 
-  const loadPost = async () => {
+  const fetchPost = async () => {
     try {
-      const { data, error } = await supabase
-        .from('posts')
-        .select(`
-          *,
-          user:users(username, profile_picture),
-          likes:post_likes(count)
-        `)
-        .eq('id', postId)
-        .single();
-
-      if (error) throw error;
-
-      if (data) {
-        setPost({
-          ...data,
-          likes: data.likes[0].count,
-        });
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load post');
-    }
-  };
-
-  const loadComments = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('comments')
-        .select(`
-          *,
-          user:users(username, profile_picture)
-        `)
-        .eq('post_id', postId)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-
-      if (data) {
-        setComments(data);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load comments');
-    }
-  };
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([loadPost(), loadComments()]);
-    setRefreshing(false);
-  };
-
-  const handleAddComment = async () => {
-    if (!newComment.trim()) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const { error } = await supabase
-        .from('comments')
-        .insert([
-          {
-            post_id: postId,
-            user_id: user?.id,
-            content: newComment,
-          },
-        ]);
-
-      if (error) throw error;
-
-      setNewComment('');
-      await loadComments();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add comment');
+      const post = await postService.getPost(postId);
+      setPost(post);
+      const isLiked = await postService.isPostLikedByUser(postId, user?.id || '');
+      setIsLiked(isLiked);
+    } catch (error) {
+      console.error('Error fetching post:', error);
+      setError('Failed to load post');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLike = async () => {
-    if (!post) return;
-
+  const fetchComments = async () => {
     try {
-      const { error } = await supabase
-        .from('post_likes')
-        .upsert(
-          {
-            post_id: postId,
-            user_id: user?.id,
-          },
-          {
-            onConflict: 'post_id,user_id',
-          }
-        );
-
-      if (error) throw error;
-
-      await loadPost();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to like post');
+      const comments = await commentService.getComments(postId);
+      setComments(comments);
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+      setError('Failed to load comments');
     }
   };
 
-  const renderComment = ({ item }: { item: Comment }) => (
-    <Card style={styles.commentCard}>
-      <Card.Content>
-        <View style={styles.commentHeader}>
-          <Avatar.Image
-            size={40}
-            source={item.user.profile_picture ? { uri: item.user.profile_picture } : undefined}
-          />
-          <View style={styles.commentUserInfo}>
-            <Text style={styles.commentUsername}>{item.user.username}</Text>
-            <Text style={styles.commentDate}>
-              {new Date(item.created_at).toLocaleDateString()}
-            </Text>
-          </View>
-        </View>
-        <Text style={styles.commentContent}>{item.content}</Text>
-      </Card.Content>
-    </Card>
-  );
+  const handleComment = async () => {
+    if (!user || !newComment.trim()) return;
 
-  if (!post) {
+    try {
+      setSubmitting(true);
+      await commentService.createComment({
+        post_id: postId,
+        user_id: user.id,
+        text: newComment.trim(),
+      });
+      setNewComment('');
+      await fetchComments();
+    } catch (error) {
+      console.error('Error creating comment:', error);
+      setError('Failed to post comment');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleLike = async () => {
+    if (!user || !post) return;
+
+    try {
+      if (isLiked) {
+        await postService.unlikePost(post.id, user.id);
+      } else {
+        await postService.likePost(post.id, user.id);
+      }
+      setIsLiked(!isLiked);
+      await fetchPost();
+    } catch (error) {
+      console.error('Error toggling like:', error);
+    }
+  };
+
+  const handleShare = () => {
+    // Implement share functionality
+  };
+
+  if (loading) {
     return (
-      <View style={styles.container}>
-        <Text>Loading...</Text>
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
 
+  if (error || !post) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text variant="bodyLarge" style={styles.error}>
+          {error || 'Post not found'}
+        </Text>
+      </View>
+    );
+  }
+
+  const renderComment = ({ item }: { item: Comment }) => (
+    <View style={styles.commentContainer}>
+      <Text variant="labelSmall" style={styles.username}>
+        {item.user?.username}
+      </Text>
+      <Text variant="bodyMedium">{item.text}</Text>
+      <Text variant="labelSmall" style={styles.timestamp}>
+        {new Date(item.created_at).toLocaleDateString()}
+      </Text>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
-      <ScrollView>
-        <Card style={styles.postCard}>
-          <Card.Content>
-            <View style={styles.postHeader}>
-              <Avatar.Image
-                size={50}
-                source={post.user.profile_picture ? { uri: post.user.profile_picture } : undefined}
-              />
-              <View style={styles.postUserInfo}>
-                <Text style={styles.postUsername}>{post.user.username}</Text>
-                <Text style={styles.postDate}>
-                  {new Date(post.created_at).toLocaleDateString()}
-                </Text>
-              </View>
-            </View>
-
-            <Text style={styles.postContent}>{post.content}</Text>
-
-            {post.image_url && (
-              <Image
-                source={{ uri: post.image_url }}
-                style={styles.postImage}
-                resizeMode="cover"
-              />
-            )}
-          </Card.Content>
-
-          <Card.Actions>
-            <Button
-              icon="heart"
-              onPress={handleLike}
-              textColor={theme.colors.primary}
-            >
-              {post.likes}
-            </Button>
-            <Button
-              icon="comment"
-              textColor={theme.colors.primary}
-            >
-              {post.comments}
-            </Button>
-          </Card.Actions>
-        </Card>
-
-        <View style={styles.commentsSection}>
-          <Text style={styles.commentsTitle}>Comments</Text>
-          <FlatList
-            data={comments}
-            renderItem={renderComment}
-            keyExtractor={(item) => item.id}
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-          />
-        </View>
-      </ScrollView>
-
-      <View style={styles.commentInputContainer}>
-        <TextInput
-          mode="outlined"
-          placeholder="Add a comment..."
-          value={newComment}
-          onChangeText={setNewComment}
-          style={styles.commentInput}
-        />
-        <IconButton
-          icon="send"
-          size={24}
-          onPress={handleAddComment}
-          disabled={!newComment.trim() || loading}
+      <View style={styles.postContainer}>
+        <Text variant="labelSmall" style={styles.username}>
+          {post.user?.username}
+        </Text>
+        <Text variant="bodyLarge" style={styles.content}>
+          {post.content}
+        </Text>
+        {post.image_url && (
+          <Image source={{ uri: post.image_url }} style={styles.image} />
+        )}
+        <Text variant="labelSmall" style={styles.timestamp}>
+          {new Date(post.created_at).toLocaleDateString()}
+        </Text>
+        <PostActions
+          post={post}
+          onLike={handleLike}
+          onComment={() => {}}
+          onShare={handleShare}
+          isLiked={isLiked}
         />
       </View>
+
+      <FlatList
+        data={comments}
+        renderItem={renderComment}
+        keyExtractor={(item) => item.id}
+        style={styles.commentsList}
+        ListHeaderComponent={
+          <View style={styles.commentInputContainer}>
+            <TextInput
+              mode="outlined"
+              value={newComment}
+              onChangeText={setNewComment}
+              placeholder="Write a comment..."
+              style={styles.commentInput}
+              maxLength={500}
+              multiline
+              disabled={submitting}
+            />
+            <Button
+              mode="contained"
+              onPress={handleComment}
+              disabled={!newComment.trim() || submitting}
+              loading={submitting}
+              style={styles.commentButton}
+            >
+              Post
+            </Button>
+          </View>
+        }
+      />
     </View>
   );
 };
@@ -261,78 +181,57 @@ const PostDetailsScreen = ({ route, navigation }: Props) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#fff',
   },
-  postCard: {
-    margin: 10,
-  },
-  postHeader: {
-    flexDirection: 'row',
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
+    padding: 20,
   },
-  postUserInfo: {
-    marginLeft: 10,
+  error: {
+    color: 'red',
+    textAlign: 'center',
   },
-  postUsername: {
-    fontSize: 16,
-    fontWeight: 'bold',
+  postContainer: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
-  postDate: {
-    fontSize: 12,
-    color: theme.colors.onSurface,
+  username: {
+    color: '#666',
+    marginBottom: 4,
   },
-  postContent: {
-    fontSize: 16,
-    marginBottom: 10,
+  content: {
+    marginBottom: 8,
   },
-  postImage: {
+  image: {
     width: '100%',
     height: 200,
     borderRadius: 8,
-    marginTop: 10,
+    marginBottom: 8,
   },
-  commentsSection: {
-    padding: 10,
+  timestamp: {
+    color: '#666',
+    marginBottom: 8,
   },
-  commentsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  commentCard: {
-    marginBottom: 10,
-  },
-  commentHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 5,
-  },
-  commentUserInfo: {
-    marginLeft: 10,
-  },
-  commentUsername: {
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  commentDate: {
-    fontSize: 12,
-    color: theme.colors.onSurface,
-  },
-  commentContent: {
-    fontSize: 14,
+  commentsList: {
+    flex: 1,
   },
   commentInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.surfaceVariant,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   commentInput: {
-    flex: 1,
-    marginRight: 10,
+    marginBottom: 8,
   },
-});
-
-export default PostDetailsScreen; 
+  commentButton: {
+    alignSelf: 'flex-end',
+  },
+  commentContainer: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+}); 
