@@ -107,5 +107,35 @@ export const postService = {
 
     if (error && error.code !== 'PGRST116') throw error;
     return !!data;
+  },
+
+  async likeComment(commentId: string, userId: string): Promise<void> {
+    const { error } = await supabase
+      .from('comment_likes')
+      .insert([{ comment_id: commentId, user_id: userId }]);
+
+    if (error) throw error;
+  },
+
+  async unlikeComment(commentId: string, userId: string): Promise<void> {
+    const { error } = await supabase
+      .from('comment_likes')
+      .delete()
+      .eq('comment_id', commentId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+  },
+
+  async isCommentLiked(commentId: string, userId: string): Promise<boolean> {
+    const { data, error } = await supabase
+      .from('comment_likes')
+      .select('id')
+      .eq('comment_id', commentId)
+      .eq('user_id', userId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return !!data;
   }
 }; 

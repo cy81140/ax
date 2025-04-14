@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Text, Card, Avatar, Divider, Searchbar, Badge } from 'react-native-paper';
-import { theme } from '../../constants/theme';
-import { AvatarTextProps } from '../../types/components';
+import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { Text, Card, Avatar, Divider, Searchbar, Badge, useTheme, Surface, Appbar, List } from 'react-native-paper';
 import { getRegions, getGroupChatsByRegion, getUserGroups } from '../../services/chat';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigation } from '@react-navigation/native';
@@ -21,6 +19,7 @@ type RootStackParamList = {
 
 type NavigationProp = StackNavigationProp<RootStackParamList, 'ChatRoom'>;
 
+// Define local data types
 interface Region {
   id: string;
   name: string;
@@ -32,18 +31,26 @@ interface GroupChat {
   name: string;
   description: string;
   region_id: string;
-  regions: {
+  regions: { // Assuming relation returns an object, not array
     name: string;
   };
 }
 
 interface UserGroup {
   group_id: string;
-  group_chats: GroupChat;
+  group_chats: GroupChat; // Assuming relation returns a single object
 }
+
+// Type for props passed to left/right in Card.Title
+type CardItemProps = {
+    size: number;
+    color: string;
+    style?: any; // Allow optional style prop
+};
 
 const ChatScreen = () => {
   const navigation = useNavigation<NavigationProp>();
+  const theme = useTheme();
   const { user } = useAuth();
   const [regions, setRegions] = useState<Region[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
@@ -52,14 +59,62 @@ const ChatScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingGroups, setLoadingGroups] = useState(false);
+  const [searchVisible, setSearchVisible] = useState(false);
+
+  // Move styles definition inside the component
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    contentContainer: { // Added container for list content
+        flex: 1,
+    },
+    searchbar: {
+      margin: 8,
+    },
+    centerContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    listContent: {
+      paddingHorizontal: 8,
+      paddingBottom: 16,
+    },
+    card: {
+      marginVertical: 4,
+      marginHorizontal: 8, // Consistent margin
+    },
+    cardRightContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingRight: 8, // Add padding if needed
+    },
+    joinedBadge: {
+      marginRight: 8,
+      backgroundColor: theme.colors.primary, // Now theme is accessible
+      color: theme.colors.onPrimary, // Now theme is accessible
+    },
+    listSubheader: {
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      fontWeight: 'bold',
+    },
+    emptyText: {
+        textAlign: 'center',
+        marginTop: 20,
+        color: theme.colors.onSurfaceVariant, // Now theme is accessible
+    }
+  });
 
   useEffect(() => {
     const loadRegions = async () => {
       try {
+        setLoading(true);
         const { data, error } = await getRegions();
         if (error) throw error;
         if (data) {
-          setRegions(data);
+          setRegions(data as Region[]);
         }
       } catch (error) {
         console.error('Error loading regions:', error);
@@ -70,13 +125,28 @@ const ChatScreen = () => {
 
     const loadUserGroups = async () => {
       if (!user) return;
-      
+
       try {
         const { data, error } = await getUserGroups(user.id);
         if (error) throw error;
         if (data) {
-          // First convert to unknown, then to UserGroup[] to avoid type mismatch errors
-          setUserGroups(data as unknown as UserGroup[]);
+          // Ensure the structure matches UserGroup, especially group_chats
+          const validUserGroups = (data as any[])
+            .filter(item => item.group_chats && item.group_chats.id) // Basic validation
+            .map(item => ({
+              group_id: item.group_id,
+              // Ensure group_chats is an object, not array, and has necessary fields
+              group_chats: {
+                  id: item.group_chats.id,
+                  name: item.group_chats.name || 'Unknown Chat',
+                  description: item.group_chats.description || '',
+                  region_id: item.group_chats.region_id,
+                  regions: { // Ensure regions structure
+                      name: item.group_chats.regions?.name || 'Unknown Region'
+                  }
+              } as GroupChat
+            })) as UserGroup[];
+          setUserGroups(validUserGroups);
         }
       } catch (error) {
         console.error('Error loading user groups:', error);
@@ -90,15 +160,31 @@ const ChatScreen = () => {
   const handleRegionSelect = async (region: Region) => {
     setSelectedRegion(region);
     setLoadingGroups(true);
-    
+    setSearchQuery('');
+    setSearchVisible(false);
     try {
       const { data, error } = await getGroupChatsByRegion(region.id);
       if (error) throw error;
       if (data) {
-        setGroupChats(data);
+         // Ensure data matches GroupChat structure
+         const validGroupChats = (data as any[])
+           .filter(item => item.id && item.regions) // Basic validation
+           .map(item => ({
+                id: item.id,
+                name: item.name || 'Unnamed Chat',
+                description: item.description || '',
+                region_id: item.region_id,
+                regions: { // Ensure regions structure
+                    name: item.regions?.name || 'Unknown Region'
+                }
+            })) as GroupChat[];
+        setGroupChats(validGroupChats);
+      } else {
+        setGroupChats([]);
       }
     } catch (error) {
       console.error('Error loading group chats:', error);
+      setGroupChats([]);
     } finally {
       setLoadingGroups(false);
     }
@@ -117,286 +203,196 @@ const ChatScreen = () => {
     return userGroups.some(group => group.group_id === groupId);
   };
 
-  // Filter regions based on search query
-  const filteredRegions = regions.filter(region => 
-    region.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    region.description.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredRegions = regions.filter(region =>
+    region.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Filter group chats based on search query
-  const filteredGroupChats = groupChats.filter(chat => 
-    chat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    chat.description.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredGroupChats = groupChats.filter(chat =>
+    chat.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const renderRegionItem = ({ item }: { item: Region }) => (
-    <TouchableOpacity onPress={() => handleRegionSelect(item)}>
-      <Card 
-        style={[
-          styles.card, 
-          selectedRegion?.id === item.id ? styles.selectedCard : null
-        ]}
-      >
-        <Card.Title
-          title={item.name}
-          subtitle={item.description}
-          left={(props: AvatarTextProps) => (
-            <Avatar.Text
-              {...props}
-              label={item.name.charAt(0)}
-              color="white"
-              style={{ backgroundColor: theme.colors.primary }}
-            />
-          )}
-          right={() => (
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={24}
-              color={theme.colors.primary}
-              style={{ marginRight: 16 }}
-            />
-          )}
-        />
-      </Card>
-    </TouchableOpacity>
+    <Card
+      style={styles.card}
+      onPress={() => handleRegionSelect(item)}
+    >
+      <Card.Title
+        title={item.name}
+        subtitle={item.description}
+        titleVariant="titleMedium"
+        subtitleVariant="bodySmall"
+        left={(props: CardItemProps) => (
+          <Avatar.Text
+            {...props}
+            label={item.name.charAt(0).toUpperCase()}
+            color={theme.colors.onPrimary}
+            style={[{ backgroundColor: theme.colors.primary }, props.style]}
+            size={40}
+          />
+        )}
+        right={(props: CardItemProps) => (
+          <MaterialCommunityIcons
+            name="chevron-right"
+            size={24}
+            color={theme.colors.onSurfaceVariant}
+            style={props.style} // Pass style if needed
+          />
+        )}
+      />
+    </Card>
   );
 
   const renderGroupChatItem = ({ item }: { item: GroupChat }) => (
-    <TouchableOpacity onPress={() => handleChatSelect(item)}>
-      <Card style={styles.card}>
-        <Card.Title
-          title={item.name}
-          subtitle={item.description}
-          left={(props: AvatarTextProps) => (
-            <Avatar.Text
-              {...props}
-              label={item.name.charAt(0)}
-              color="white"
-              style={{ backgroundColor: theme.colors.secondary }}
+    <Card
+      style={styles.card}
+      onPress={() => handleChatSelect(item)}
+    >
+      <Card.Title
+        title={item.name}
+        subtitle={item.description}
+        titleVariant="titleMedium"
+        subtitleVariant="bodySmall"
+        left={(props: CardItemProps) => (
+          <Avatar.Text
+            {...props}
+            label={item.name.charAt(0).toUpperCase()}
+            color={theme.colors.onSecondaryContainer}
+            style={[{ backgroundColor: theme.colors.secondaryContainer }, props.style]}
+            size={40}
+          />
+        )}
+        right={(props: CardItemProps) => (
+          <View style={styles.cardRightContainer}>
+            {isUserInGroup(item.id) && (
+              <Badge style={styles.joinedBadge} theme={theme} size={16}>Joined</Badge>
+            )}
+            <MaterialCommunityIcons
+              name="chat-processing-outline"
+              size={24}
+              color={theme.colors.onSurfaceVariant}
+              style={props.style}
             />
-          )}
-          right={() => (
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16 }}>
-              {isUserInGroup(item.id) && (
-                <Badge style={{ backgroundColor: theme.colors.primary, marginRight: 8 }}>
-                  Joined
-                </Badge>
-              )}
-              <MaterialCommunityIcons
-                name="chat"
-                size={24}
-                color={theme.colors.primary}
-              />
-            </View>
-          )}
-        />
-      </Card>
-    </TouchableOpacity>
+          </View>
+        )}
+      />
+    </Card>
   );
 
   const renderYourChatsItem = ({ item }: { item: UserGroup }) => (
-    <TouchableOpacity onPress={() => handleChatSelect(item.group_chats)}>
-      <Card style={styles.card}>
-        <Card.Title
-          title={item.group_chats.name}
-          subtitle={`${item.group_chats.regions.name} - ${item.group_chats.description}`}
-          left={(props: AvatarTextProps) => (
-            <Avatar.Text
-              {...props}
-              label={item.group_chats.name.charAt(0)}
-              color="white"
-              style={{ backgroundColor: theme.colors.secondary }}
-            />
-          )}
-          right={() => (
-            <MaterialCommunityIcons
-              name="chat"
-              size={24}
-              color={theme.colors.primary}
-              style={{ marginRight: 16 }}
-            />
-          )}
-        />
-      </Card>
-    </TouchableOpacity>
+    <Card
+      style={styles.card}
+      onPress={() => handleChatSelect(item.group_chats)}
+    >
+      <Card.Title
+        title={item.group_chats.name}
+        subtitle={`${item.group_chats.regions.name} - ${item.group_chats.description}`}
+        titleVariant="titleMedium"
+        subtitleVariant="bodySmall"
+        left={(props: CardItemProps) => (
+          <Avatar.Text
+            {...props}
+            label={item.group_chats.name.charAt(0).toUpperCase()}
+            color={theme.colors.onSecondaryContainer}
+            style={[{ backgroundColor: theme.colors.secondaryContainer }, props.style]}
+            size={40}
+          />
+        )}
+        right={(props: CardItemProps) => (
+          <MaterialCommunityIcons
+            name="chat-processing-outline"
+            size={24}
+            color={theme.colors.onSurfaceVariant}
+            style={[{ marginRight: 0 }, props.style]}
+          />
+        )}
+      />
+    </Card>
   );
 
-  if (loading) {
+    // Function to determine which list content to render
+  const renderListContent = () => {
+    if (loading && !selectedRegion && regions.length === 0 && userGroups.length === 0) {
+      return <View style={styles.centerContainer}><ActivityIndicator size="large" /></View>;
+    }
+
+    // 1. Display Group Chats if a region is selected
+    if (selectedRegion) {
+      return (
+        <FlatList<GroupChat>
+          data={filteredGroupChats}
+          renderItem={renderGroupChatItem}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={<List.Subheader style={styles.listSubheader}>{selectedRegion.name} Chats</List.Subheader>}
+          ListEmptyComponent={
+            !loadingGroups ? <Text style={styles.emptyText}>No chats found in this region.</Text> : <ActivityIndicator style={{ marginTop: 20 }} />
+          }
+          contentContainerStyle={styles.listContent}
+        />
+      );
+    }
+
+    // 2. Display Search Results (Regions) if searching
+    if (searchQuery) {
+       return (
+        <FlatList<Region>
+          data={filteredRegions}
+          renderItem={renderRegionItem}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={<List.Subheader style={styles.listSubheader}>Regions Found</List.Subheader>}
+          ListEmptyComponent={<Text style={styles.emptyText}>No regions match your search.</Text>}
+          contentContainerStyle={styles.listContent}
+        />
+      );
+    }
+
+    // 3. Display User's Chats and All Regions
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
+        <View style={{ flex: 1 }}>
+            {userGroups.length > 0 && (
+                <>
+                    <List.Subheader style={styles.listSubheader}>Your Chats</List.Subheader>
+                    <FlatList<UserGroup>
+                        data={userGroups}
+                        renderItem={renderYourChatsItem}
+                        keyExtractor={(item) => item.group_id}
+                        contentContainerStyle={{ paddingBottom: 0 }} // Adjust padding if needed
+                        scrollEnabled={false} // Disable scroll if nested or manage height
+                    />
+                    <Divider style={{ marginVertical: 8 }}/>
+                </>
+            )}
+             <List.Subheader style={styles.listSubheader}>All Regions</List.Subheader>
+             <FlatList<Region>
+                data={regions} // Show all regions
+                renderItem={renderRegionItem}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={{ flexGrow: 1, paddingBottom: 16 }} // Ensure padding at bottom
+                ListEmptyComponent={!loading ? <Text style={styles.emptyText}>No regions available.</Text> : null}
+            />
+        </View>
     );
-  }
+  };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Chat Rooms</Text>
+    <Surface style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <Appbar.Header>
+        {selectedRegion && <Appbar.BackAction onPress={() => setSelectedRegion(null)} />}
+        <Appbar.Content title={selectedRegion ? selectedRegion.name : "Chat Regions"} />
+        <Appbar.Action icon={searchVisible ? "close" : "magnify"} onPress={() => setSearchVisible(!searchVisible)} />
+      </Appbar.Header>
+      {searchVisible && (
         <Searchbar
-          placeholder="Search regions or provinces"
+          placeholder={selectedRegion ? "Search chats..." : "Search regions..."}
           onChangeText={setSearchQuery}
           value={searchQuery}
-          style={styles.searchBar}
+          style={styles.searchbar}
         />
+      )}
+      <View style={styles.contentContainer}>
+        {renderListContent()}
       </View>
-
-      {userGroups.length > 0 && !selectedRegion && searchQuery === '' && (
-        <>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Your Chats</Text>
-          </View>
-          <FlatList
-            data={userGroups}
-            keyExtractor={(item) => item.group_id}
-            renderItem={renderYourChatsItem}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            style={styles.list}
-            horizontal={false}
-            scrollEnabled={false}
-          />
-          <Divider style={styles.divider} />
-        </>
-      )}
-
-      {!selectedRegion ? (
-        <>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Regions</Text>
-          </View>
-          <FlatList
-            data={filteredRegions}
-            keyExtractor={(item) => item.id}
-            renderItem={renderRegionItem}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            style={styles.list}
-            contentContainerStyle={styles.listContent}
-          />
-        </>
-      ) : (
-        <>
-          <View style={styles.sectionHeader}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => setSelectedRegion(null)}
-            >
-              <MaterialCommunityIcons
-                name="arrow-left"
-                size={24}
-                color={theme.colors.primary}
-              />
-              <Text style={styles.backText}>Back to Regions</Text>
-            </TouchableOpacity>
-            <Text style={styles.sectionTitle}>{selectedRegion.name} Provinces</Text>
-          </View>
-
-          {loadingGroups ? (
-            <View style={styles.centerContainer}>
-              <ActivityIndicator size="large" color={theme.colors.primary} />
-            </View>
-          ) : (
-            <FlatList
-              data={filteredGroupChats}
-              keyExtractor={(item) => item.id}
-              renderItem={renderGroupChatItem}
-              ItemSeparatorComponent={() => <View style={styles.separator} />}
-              style={styles.list}
-              contentContainerStyle={styles.listContent}
-              ListEmptyComponent={(
-                <View style={styles.emptyContainer}>
-                  <MaterialCommunityIcons
-                    name="chat-remove"
-                    size={64}
-                    color={theme.colors.primary}
-                  />
-                  <Text style={styles.emptyText}>No provinces found</Text>
-                </View>
-              )}
-            />
-          )}
-        </>
-      )}
-    </View>
+    </Surface>
   );
 };
-
-const styles = StyleSheet.create({
-  backButton: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    marginRight: 16,
-  },
-  backText: {
-    color: theme.colors.primary,
-    fontWeight: 'bold',
-    marginLeft: 4,
-  },
-  card: {
-    elevation: 2,
-    marginHorizontal: 16,
-    marginVertical: 4,
-  },
-  centerContainer: {
-    alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center',
-  },
-  container: {
-    backgroundColor: theme.colors.background,
-    flex: 1,
-  },
-  divider: {
-    marginVertical: 8,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center',
-    padding: 32,
-  },
-  emptyText: {
-    color: theme.colors.text,
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginTop: 16,
-  },
-  header: {
-    padding: 16,
-  },
-  list: {
-    flex: 1,
-  },
-  listContent: {
-    paddingBottom: 16,
-  },
-  searchBar: {
-    backgroundColor: theme.colors.surface,
-    marginBottom: 8,
-  },
-  sectionHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  sectionTitle: {
-    color: theme.colors.text,
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  selectedCard: {
-    borderColor: theme.colors.primary,
-    borderWidth: 1,
-  },
-  separator: {
-    height: 4,
-  },
-  title: {
-    color: theme.colors.primary,
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-});
 
 export default ChatScreen; 

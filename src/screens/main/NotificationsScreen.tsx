@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, FlatList } from 'react-native';
-import { Text, useTheme, ActivityIndicator } from 'react-native-paper';
+import { Text, useTheme, ActivityIndicator, Surface, Appbar, List, Avatar, Divider } from 'react-native-paper';
 import { useAuth } from '../../contexts/AuthContext';
-import { activityService } from '../../services/activity';
-import { Activity } from '../../types/services';
+import { activityService, Activity } from '../../services/activity';
 import { MainStackScreenProps } from '../../types/navigation';
+import { formatDistanceToNow } from 'date-fns';
 
 type Props = MainStackScreenProps<'Notifications'>;
+type ListItemProps = { color: string; style?: any };
 
 export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
   const theme = useTheme();
@@ -15,12 +16,15 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchActivities();
-  }, []);
+    if (user) {
+        fetchActivities(user.id);
+    }
+  }, [user]);
 
-  const fetchActivities = async () => {
+  const fetchActivities = async (userId: string) => {
+    setLoading(true);
     try {
-      const data = await activityService.getActivityFeed(user?.id || '');
+      const data = await activityService.getActivitiesByUserId(userId);
       setActivities(data);
     } catch (error) {
       console.error('Error fetching activities:', error);
@@ -29,83 +33,111 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  const getActivityTitle = (activity: Activity) => {
-    switch (activity.type) {
+  const getActivityDescription = (activity: Activity): string => {
+    const actorName = activity.user?.username || 'Someone';
+    switch (activity.action_type) {
       case 'post':
-        return 'New post';
+        return `${actorName} created a new post.`;
       case 'comment':
-        return 'New comment';
+        return `${actorName} commented.`;
       case 'like':
-        return 'New like';
+        return `${actorName} liked something.`;
       case 'follow':
-        return 'New follower';
+        return `${actorName} started following you.`;
       default:
-        return 'New activity';
+        return `${actorName} performed an action.`;
     }
   };
 
   const handleActivityPress = (activity: Activity) => {
-    if (activity.post) {
-      navigation.navigate('PostDetails', { postId: activity.post.id });
-    } else if (activity.comment) {
-      navigation.navigate('PostDetails', {
-        postId: activity.comment.post_id,
-        commentId: activity.comment.id,
-      });
-    } else if (activity.user) {
-      navigation.navigate('Profile', { userId: activity.user.id });
+    switch (activity.action_type) {
+      case 'post':
+      case 'comment':
+      case 'like':
+        if (activity.target_id) {
+            console.log("Navigating to Post:", activity.target_id);
+        } else {
+            console.warn("Missing target_id for post/comment/like activity:", activity.id);
+        }
+        break;
+      case 'follow':
+        if (activity.actor_id) {
+             console.log("Navigating to User Profile:", activity.actor_id);
+        } else {
+             console.warn("Missing actor_id for follow activity:", activity.id);
+        }
+        break;
+      default:
+        console.log('Unhandled activity type press:', activity.action_type);
     }
   };
 
-  const renderItem = ({ item }: { item: Activity }) => (
-    <View style={styles.activityItem}>
-      <Text variant="bodyMedium">{getActivityTitle(item)}</Text>
-      <Text variant="bodySmall" style={styles.timestamp}>
-        {new Date(item.created_at).toLocaleString()}
-      </Text>
-    </View>
-  );
+  const renderItem = ({ item }: { item: Activity }) => {
+    const timeAgo = formatDistanceToNow(new Date(item.created_at), { addSuffix: true });
+    const description = getActivityDescription(item);
 
-  if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
-      </View>
+      <List.Item
+        title={description}
+        description={timeAgo}
+        titleNumberOfLines={2}
+        descriptionStyle={{ color: theme.colors.onSurfaceVariant }}
+        onPress={() => handleActivityPress(item)}
+        left={(props: ListItemProps) => (
+          item.user?.profile_picture
+          ? <Avatar.Image {...props} source={{ uri: item.user.profile_picture }} size={40} />
+          : <Avatar.Icon {...props} icon="account-circle" size={40} />
+        )}
+      />
     );
   }
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={activities}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-      />
-    </View>
+    <Surface style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <Appbar.Header>
+         <Appbar.Content title="Activity" />
+         <Appbar.Action icon="refresh" onPress={() => user && fetchActivities(user.id)} disabled={loading} />
+      </Appbar.Header>
+
+      {loading && activities.length === 0 ? (
+          <View style={styles.centerContainer}>
+             <ActivityIndicator animating={true} size="large" color={theme.colors.primary} />
+          </View>
+      ) : (
+          <FlatList
+            data={activities}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            ItemSeparatorComponent={() => <Divider />}
+            ListEmptyComponent={(
+                !loading ? (
+                    <View style={styles.centerContainer}>
+                        <Text variant="titleMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+                            No recent activity.
+                        </Text>
+                    </View>
+                ) : null
+            )}
+          />
+      )}
+    </Surface>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
-  loadingContainer: {
+  centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  list: {
     padding: 16,
   },
-  activityItem: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+  listContent: {
+    paddingBottom: 16,
   },
-  timestamp: {
-    color: '#666',
-    marginTop: 4,
-  },
-}); 
+});
+
+export default NotificationsScreen; 

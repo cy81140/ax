@@ -1,23 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, FlatList } from 'react-native';
-import { Text, Card, ActivityIndicator, useTheme } from 'react-native-paper';
-import { activityService } from '../../services/activity';
-import { Activity } from '../../types/services';
+import { Text, Card, ActivityIndicator, useTheme, Avatar } from 'react-native-paper';
+import { getUserActivity, Activity } from '../../services/activity';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const ActivityFeedScreen = () => {
   const theme = useTheme();
+  const { user } = useAuth();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadActivities();
-  }, []);
+    if (user) {
+      loadActivities(user.id);
+    }
+  }, [user]);
 
-  const loadActivities = async () => {
+  const loadActivities = async (userId: string) => {
+    setLoading(true);
+    setError(null);
     try {
-      const data = await activityService.getActivityFeed('current-user-id'); // Replace with actual user ID
-      setActivities(data);
+      const response = await getUserActivity(userId);
+      if (response.error) throw response.error;
+      setActivities(response.data || []);
     } catch (err) {
       setError('Failed to load activities');
       console.error('Error loading activities:', err);
@@ -30,32 +36,44 @@ export const ActivityFeedScreen = () => {
     let content = '';
     let icon = '';
 
-    switch (item.type) {
+    const actorName = item.user?.username || 'Someone';
+
+    switch (item.action_type) {
       case 'post':
-        content = `Created a new post: ${item.post?.content}`;
-        icon = 'post';
+        content = `${actorName} created a new post.`;
+        icon = 'file-document-outline';
         break;
       case 'comment':
-        content = `Commented on a post: ${item.comment?.text}`;
-        icon = 'comment';
+        content = `${actorName} commented.`;
+        icon = 'comment-processing-outline';
         break;
       case 'like':
-        content = 'Liked a post';
-        icon = 'heart';
+        content = `${actorName} liked something.`;
+        icon = 'heart-outline';
         break;
       case 'follow':
-        content = `Started following ${item.user?.username}`;
-        icon = 'account-plus';
+        content = `${actorName} started following someone.`;
+        icon = 'account-plus-outline';
         break;
+      default:
+        content = `${actorName} performed an action.`;
+        icon = 'help-circle-outline';
     }
 
     return (
       <Card style={styles.card}>
-        <Card.Content>
-          <Text style={styles.content}>{content}</Text>
-          <Text style={styles.timestamp}>
-            {new Date(item.created_at).toLocaleString()}
-          </Text>
+        <Card.Content style={styles.cardContent}>
+          {item.user?.profile_picture ? (
+            <Avatar.Image size={40} source={{ uri: item.user.profile_picture }} style={styles.avatar} />
+          ) : (
+            <Avatar.Icon size={40} icon={icon} style={styles.avatar} />
+          )}
+          <View style={styles.textContainer}>
+            <Text style={styles.content}>{content}</Text>
+            <Text style={styles.timestamp}>
+              {new Date(item.created_at).toLocaleString()}
+            </Text>
+          </View>
         </Card.Content>
       </Card>
     );
@@ -83,6 +101,8 @@ export const ActivityFeedScreen = () => {
       renderItem={renderActivity}
       keyExtractor={(item) => item.id}
       style={styles.container}
+      contentContainerStyle={activities.length === 0 ? styles.center : null}
+      ListEmptyComponent={!loading ? <Text>No recent activity.</Text> : null}
     />
   );
 };
@@ -90,26 +110,36 @@ export const ActivityFeedScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
   card: {
-    margin: 10,
+    marginVertical: 4,
+    marginHorizontal: 8,
+  },
+  cardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatar: {
+    marginRight: 12,
+  },
+  textContainer: {
+    flex: 1,
   },
   content: {
-    fontSize: 16,
-    marginBottom: 10,
+    fontSize: 15,
   },
   timestamp: {
     fontSize: 12,
-    color: '#666',
+    color: 'grey',
+    marginTop: 4,
   },
   error: {
-    color: 'red',
     fontSize: 16,
   },
 }); 

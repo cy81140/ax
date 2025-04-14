@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
-import { Text, Card, Avatar, Button, Chip, Divider } from 'react-native-paper';
-import { theme } from '../../constants/theme';
+import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import { Text, Card, Avatar, Button, Chip, Divider, useTheme, Surface, ActivityIndicator } from 'react-native-paper';
 import { useAuth } from '../../contexts/AuthContext';
 import { getPosts } from '../../services/database';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -9,6 +8,7 @@ import { AvatarImageProps } from '../../types/components';
 import { HomeStackScreenProps } from '../../navigation/types';
 import { useResponsive } from '../../hooks/useResponsive';
 import { ResponsiveView } from '../../components/ui/ResponsiveView';
+import { formatDistanceToNow } from 'date-fns';
 
 interface Post {
   id: string;
@@ -27,6 +27,7 @@ type Props = HomeStackScreenProps<'Feed'>;
 
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { user } = useAuth();
+  const theme = useTheme();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -35,19 +36,25 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { isWeb, isDesktop, width } = useResponsive();
 
   const loadPosts = useCallback(async (offset = 0) => {
+    setLoading(offset === 0);
+    setLoadingMore(offset > 0);
     try {
       const { data, error } = await getPosts(10, offset);
       
       if (error) throw error;
       
       if (data) {
+        const formattedPosts = data.map((p: any) => ({
+          ...p,
+          comments: typeof p.comments === 'object' && p.comments !== null ? p.comments.count : (p.comments ?? 0)
+        }));
+
         if (offset === 0) {
-          setPosts(data as Post[]);
+          setPosts(formattedPosts as Post[]);
         } else {
-          setPosts(prev => [...prev, ...(data as Post[])]);
+          setPosts(prev => [...prev, ...(formattedPosts as Post[])]);
         }
         
-        // If we got fewer results than requested, there are no more posts
         setHasMore(data.length === 10);
       }
     } catch (error) {
@@ -69,15 +76,17 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleLoadMore = () => {
-    if (!loadingMore && hasMore) {
-      setLoadingMore(true);
+    if (!loading && !loadingMore && hasMore) {
       loadPosts(posts.length);
     }
   };
 
   const renderPostItem = ({ item }: { item: Post }) => {
-    const timeAgo = new Date(item.created_at).toLocaleDateString();
-    
+    let timeAgo = 'Just now';
+    try {
+      timeAgo = formatDistanceToNow(new Date(item.created_at), { addSuffix: true });
+    } catch (e) { console.error("Failed to parse date:", item.created_at); }
+
     return (
       <Card 
         style={styles.postCard}
@@ -85,8 +94,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       >
         <Card.Title
           title={item.users.username}
+          titleVariant="titleMedium"
           subtitle={timeAgo}
-          left={(props: AvatarImageProps) => (
+          subtitleVariant="bodySmall"
+          left={(props: any) => (
             <Avatar.Image
               {...props}
               source={
@@ -99,7 +110,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           )}
         />
         <Card.Content>
-          <Text style={styles.postContent}>{item.content}</Text>
+          <Text variant="bodyMedium" style={styles.postContent}>{item.content}</Text>
           {item.image_url && (
             <Card.Cover 
               source={{ uri: item.image_url }} 
@@ -118,10 +129,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             icon="comment-outline" 
             onPress={() => navigation.navigate('PostDetails', { postId: item.id })}
           >
-            {typeof item.comments === 'object' ? (item.comments as any).count : item.comments} Comments
+            {item.comments} Comments
           </Button>
           <Button 
-            icon="share-outline" 
+            icon="share-variant-outline"
             onPress={() => console.log('Share post')}
           >
             Share
@@ -131,107 +142,100 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     );
   };
 
+  if (loading && posts.length === 0) {
+    return (
+      <Surface style={[styles.centerContainer, { backgroundColor: theme.colors.background }]}>
+        <ActivityIndicator size="large" animating={true} color={theme.colors.primary} />
+      </Surface>
+    );
+  }
+
   return (
     <ResponsiveView 
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
       webStyle={styles.webContainer}
       desktopStyle={styles.desktopContainer}
     >
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
-      ) : (
-        <FlatList
-          data={posts}
-          renderItem={renderPostItem}
-          keyExtractor={item => item.id}
-          contentContainerStyle={[
-            styles.listContent,
-            isDesktop && styles.desktopListContent
-          ]}
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={
-            loadingMore ? (
-              <View style={styles.footerLoader}>
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-              </View>
-            ) : null
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons 
-                name="post-outline" 
-                size={64} 
-                color={theme.colors.primary} 
-              />
-              <Text style={styles.emptyText}>No posts yet</Text>
-              <Text>Be the first to create a post!</Text>
+      <FlatList
+        data={posts}
+        renderItem={renderPostItem}
+        keyExtractor={item => item.id}
+        contentContainerStyle={[
+          styles.listContent,
+          isDesktop && styles.desktopListContent
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={styles.footerLoader}>
+              <ActivityIndicator size="small" animating={true} color={theme.colors.primary} />
             </View>
-          }
-        />
-      )}
+          ) : null
+        }
+        ListEmptyComponent={
+          <Surface style={[styles.emptyContainer, { backgroundColor: theme.colors.background }]}>
+            <MaterialCommunityIcons 
+              name="post-outline" 
+              size={64} 
+              color={theme.colors.primary} 
+            />
+            <Text variant="titleMedium" style={styles.emptyText}>No posts yet</Text>
+            <Text variant="bodyMedium">Be the first to create a post!</Text>
+          </Surface>
+        }
+      />
     </ResponsiveView>
   );
 };
 
 const styles = StyleSheet.create({
   centerContainer: {
-    alignItems: 'center',
     flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
   },
   container: {
-    backgroundColor: theme.colors.background,
     flex: 1,
   },
   emptyContainer: {
-    alignItems: 'center',
     flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
     padding: 32,
   },
   emptyText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
     marginTop: 16,
+    marginBottom: 8,
   },
   footerLoader: {
+    padding: 16,
     alignItems: 'center',
-    padding: 16,
-  },
-  header: {
-    padding: 16,
   },
   listContent: {
     paddingBottom: 16,
   },
   postActions: {
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
+    paddingHorizontal: 8,
   },
   postCard: {
     marginHorizontal: 16,
     marginVertical: 8,
   },
   postContent: {
-    fontSize: 16,
     marginBottom: 12,
   },
   postImage: {
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  separator: {
-    height: 8,
-  },
-  title: {
-    color: theme.colors.primary,
-    fontSize: 24,
-    fontWeight: 'bold',
+    marginTop: 12,
   },
   webContainer: {
     paddingHorizontal: '5%',
@@ -244,11 +248,6 @@ const styles = StyleSheet.create({
   },
   desktopListContent: {
     paddingHorizontal: 20,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });
 

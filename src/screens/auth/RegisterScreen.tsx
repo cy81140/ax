@@ -1,153 +1,211 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { TextInput, Button, Text } from 'react-native-paper';
+import { StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { TextInput, Button, Text, useTheme, Surface, HelperText } from 'react-native-paper';
 import { useAuth } from '../../contexts/AuthContext';
-import { theme } from '../../constants/theme';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
 const RegisterScreen = ({ navigation }: Props) => {
+  const theme = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
+  const [generalError, setGeneralError] = useState<string | null>(null);
   const { signUp } = useAuth();
 
-  const validateForm = () => {
-    if (!email || !password || !confirmPassword || !username) {
-      setError('Please fill in all fields');
-      return false;
+  const validateForm = (): boolean => {
+    let isValid = true;
+    setUsernameError(null);
+    setEmailError(null);
+    setPasswordError(null);
+    setConfirmPasswordError(null);
+    setGeneralError(null);
+
+    if (!username) {
+      setUsernameError('Username is required');
+      isValid = false;
     }
-    
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return false;
+    if (!email) {
+      setEmailError('Email is required');
+      isValid = false;
     }
-    
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
-      return false;
+    if (!password) {
+      setPasswordError('Password is required');
+      isValid = false;
     }
-    
-    return true;
+    if (!confirmPassword) {
+      setConfirmPasswordError('Password confirmation is required');
+      isValid = false;
+    }
+    if (password && confirmPassword && password !== confirmPassword) {
+      setConfirmPasswordError('Passwords do not match');
+      isValid = false;
+    }
+    if (password && password.length < 6) {
+      setPasswordError('Password must be at least 6 characters');
+      isValid = false;
+    }
+
+    return isValid;
   };
 
   const handleRegister = async () => {
     if (!validateForm()) return;
 
     setLoading(true);
-    setError(null);
+    setGeneralError(null);
 
     try {
       await signUp(email, password, username);
-      // Registration successful, the user will be automatically logged in via the Auth listener
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred during registration');
+      console.error("Registration Error:", err);
+      let message = 'An error occurred during registration.';
+      if (err instanceof Error) {
+          if (err.message.includes('duplicate key value violates unique constraint "users_username_key"')) {
+              message = 'Username already taken. Please choose another.';
+              setUsernameError(message);
+          } else if (err.message.includes('duplicate key value violates unique constraint "users_email_key"')) {
+              message = 'Email already registered. Please log in.';
+              setEmailError(message);
+          } else {
+              message = err.message;
+          }
+      } else {
+          message = String(err);
+      }
+      setGeneralError(message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContainer}>
-      <View style={styles.container}>
-        <Text style={styles.title}>Create Account</Text>
-        
-        {error && (
-          <Text style={styles.error}>{error}</Text>
-        )}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <Surface style={[styles.content, { backgroundColor: theme.colors.background }]}>
+          <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.primary }]}>
+            Create Account
+          </Text>
 
-        <TextInput
-          label="Username"
-          value={username}
-          onChangeText={setUsername}
-          autoCapitalize="none"
-          style={styles.input}
-        />
+          <TextInput
+            mode="outlined"
+            label="Username"
+            value={username}
+            onChangeText={setUsername}
+            autoCapitalize="none"
+            style={styles.input}
+            error={!!usernameError}
+          />
+          <HelperText type="error" visible={!!usernameError}>
+            {usernameError}
+          </HelperText>
 
-        <TextInput
-          label="Email"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          style={styles.input}
-        />
+          <TextInput
+            mode="outlined"
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            style={styles.input}
+            error={!!emailError}
+          />
+          <HelperText type="error" visible={!!emailError}>
+            {emailError}
+          </HelperText>
 
-        <TextInput
-          label="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          style={styles.input}
-        />
+          <TextInput
+            mode="outlined"
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            style={styles.input}
+            error={!!passwordError}
+          />
+          <HelperText type="error" visible={!!passwordError}>
+            {passwordError}
+          </HelperText>
 
-        <TextInput
-          label="Confirm Password"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry
-          style={styles.input}
-        />
+          <TextInput
+            mode="outlined"
+            label="Confirm Password"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+            style={styles.input}
+            error={!!confirmPasswordError}
+          />
+          <HelperText type="error" visible={!!confirmPasswordError}>
+            {confirmPasswordError}
+          </HelperText>
 
-        <Button
-          mode="contained"
-          onPress={handleRegister}
-          loading={loading}
-          disabled={loading}
-          style={styles.button}
-        >
-          Sign Up
-        </Button>
+          <HelperText type="error" visible={!!generalError} style={styles.generalError}>
+            {generalError}
+          </HelperText>
 
-        <Button
-          mode="text"
-          onPress={() => navigation.navigate('Login')}
-          style={styles.link}
-        >
-          Already have an account? Log in
-        </Button>
-      </View>
-    </ScrollView>
+          <Button
+            mode="contained"
+            onPress={handleRegister}
+            loading={loading}
+            disabled={loading}
+            style={styles.button}
+          >
+            Sign Up
+          </Button>
+
+          <Button
+            mode="text"
+            onPress={() => navigation.navigate('Login')}
+            style={styles.linkButton}
+          >
+            Already have an account? Log in
+          </Button>
+        </Surface>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  button: {
-    backgroundColor: theme.colors.primary,
-    marginTop: 8,
-  },
   container: {
-    backgroundColor: theme.colors.background,
     flex: 1,
-    justifyContent: 'center',
-    padding: 20,
-  },
-  error: {
-    color: theme.colors.error,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  input: {
-    backgroundColor: theme.colors.surface,
-    marginBottom: 16,
-  },
-  link: {
-    marginTop: 16,
   },
   scrollContainer: {
     flexGrow: 1,
+    justifyContent: 'center',
+  },
+  content: {
+    padding: 24,
   },
   title: {
-    color: theme.colors.primary,
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
     textAlign: 'center',
+    marginBottom: 24,
+  },
+  input: {
+    marginBottom: 4,
+  },
+  button: {
+    marginTop: 16,
+  },
+  linkButton: {
+    marginTop: 16,
+  },
+  generalError: {
+    textAlign: 'center',
+    marginBottom: 8,
   },
 });
 

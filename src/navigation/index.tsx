@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createMaterialBottomTabNavigator } from '@react-navigation/material-bottom-tabs';
 import { 
   RootStackParamList, 
   AuthStackParamList, 
@@ -13,7 +13,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
-import ThemedTabBar from '../components/ThemedTabBar';
+import ThemedAppbar from '../components/ThemedAppbar';
 
 // Import screens using barrel exports
 import { LoginScreen, RegisterScreen } from '../screens/auth';
@@ -35,7 +35,7 @@ import MutedUsersScreen from '../screens/settings/MutedUsersScreen';
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
-const MainTab = createBottomTabNavigator<MainTabParamList>();
+const MainTab = createMaterialBottomTabNavigator<MainTabParamList>();
 const ChatStack = createNativeStackNavigator<ChatStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
@@ -68,9 +68,10 @@ const HomeNavigator = () => {
       <HomeStack.Screen 
         name="PostDetails" 
         component={PostDetailsScreen} 
-        options={{ 
+        options={{
           title: "Post",
-          headerBackTitle: "Back",
+          headerShown: true,
+          header: (props) => <ThemedAppbar {...props} />,
         }}
       />
     </HomeStack.Navigator>
@@ -134,27 +135,27 @@ const ProfileNavigator = () => {
 };
 
 /**
- * Main Tab Navigator
- * The primary navigation UI that appears at the bottom of the app
+ * Main Tab Navigator (Using Material Bottom Tabs)
  */
 const MainNavigator = () => {
   const { theme } = useTheme();
   
   return (
     <MainTab.Navigator
-      tabBar={props => <ThemedTabBar {...props} />}
+      initialRouteName="Home"
+      activeColor={theme.colors.primary}
+      inactiveColor={theme.colors.onSurfaceVariant}
+      barStyle={{ backgroundColor: theme.colors.elevation.level2 }}
       screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: theme.colors.onSurface,
       }}
     >
       <MainTab.Screen 
         name="Home" 
         component={HomeNavigator} 
         options={{
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <MaterialCommunityIcons name="home" color={color} size={size} />
+          tabBarLabel: 'Home',
+          tabBarIcon: ({ color, focused }: { color: string, focused: boolean }) => (
+            <MaterialCommunityIcons name={focused ? "home" : "home-outline"} color={color} size={24} />
           ),
         }}
       />
@@ -162,8 +163,9 @@ const MainNavigator = () => {
         name="Chat" 
         component={ChatNavigator} 
         options={{
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <MaterialCommunityIcons name="chat" color={color} size={size} />
+          tabBarLabel: 'Chat',
+          tabBarIcon: ({ color, focused }: { color: string, focused: boolean }) => (
+            <MaterialCommunityIcons name={focused ? "chat" : "chat-outline"} color={color} size={24} />
           ),
         }}
       />
@@ -171,8 +173,9 @@ const MainNavigator = () => {
         name="Create" 
         component={CreateScreen} 
         options={{
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <MaterialCommunityIcons name="plus-circle" color={color} size={size} />
+          tabBarLabel: 'Create',
+          tabBarIcon: ({ color, focused }: { color: string, focused: boolean }) => (
+            <MaterialCommunityIcons name={focused ? "plus-circle" : "plus-circle-outline"} color={color} size={24} />
           ),
         }}
       />
@@ -180,8 +183,9 @@ const MainNavigator = () => {
         name="Search" 
         component={SearchScreen} 
         options={{
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <MaterialCommunityIcons name="magnify" color={color} size={size} />
+          tabBarLabel: 'Search',
+          tabBarIcon: ({ color, focused }: { color: string, focused: boolean }) => (
+            <MaterialCommunityIcons name="magnify" color={color} size={24} />
           ),
         }}
       />
@@ -189,8 +193,9 @@ const MainNavigator = () => {
         name="Activity" 
         component={NotificationsScreen as React.ComponentType<any>} 
         options={{
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <MaterialCommunityIcons name="bell" color={color} size={size} />
+          tabBarLabel: 'Activity',
+          tabBarIcon: ({ color, focused }: { color: string, focused: boolean }) => (
+            <MaterialCommunityIcons name={focused ? "bell" : "bell-outline"} color={color} size={24} />
           ),
         }}
       />
@@ -199,8 +204,8 @@ const MainNavigator = () => {
         component={ProfileNavigator} 
         options={{
           tabBarLabel: 'Profile',
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <MaterialCommunityIcons name="account" color={color} size={size} />
+          tabBarIcon: ({ color, focused }: { color: string, focused: boolean }) => (
+            <MaterialCommunityIcons name={focused ? "account" : "account-outline"} color={color} size={24} />
           ),
         }}
       />

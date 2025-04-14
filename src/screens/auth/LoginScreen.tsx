@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-import { TextInput, Button, Text, useTheme } from 'react-native-paper';
+import { StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { TextInput, Button, Text, useTheme, Surface, HelperText } from 'react-native-paper';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -30,28 +30,39 @@ export const LoginScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<LoginError | null>(null);
 
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [generalError, setGeneralError] = useState<string | null>(null);
+
   const validateForm = (): boolean => {
+    let isValid = true;
+    setEmailError(null);
+    setPasswordError(null);
+    setGeneralError(null);
+
     if (!formData.email) {
-      setError({ message: 'Email is required', field: 'email' });
-      return false;
+      setEmailError('Email is required');
+      isValid = false;
     }
+
     if (!formData.password) {
-      setError({ message: 'Password is required', field: 'password' });
-      return false;
+      setPasswordError('Password is required');
+      isValid = false;
     }
-    return true;
+
+    return isValid;
   };
 
   const handleLogin = async () => {
     if (!validateForm()) return;
 
     try {
-      setError(null);
+      setGeneralError(null);
       setLoading(true);
       await signIn(formData.email, formData.password);
     } catch (err) {
       console.error('Login error:', err);
-      setError({ message: 'Invalid email or password' });
+      setGeneralError('Invalid email or password. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -60,11 +71,11 @@ export const LoginScreen: React.FC = () => {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 50 : 0}
     >
-      <View style={styles.content}>
-        <Text variant="headlineMedium" style={styles.title}>
+      <Surface style={[styles.content, { backgroundColor: theme.colors.background }]}>
+        <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.primary }]}>
           Welcome Back
         </Text>
         <TextInput
@@ -74,23 +85,27 @@ export const LoginScreen: React.FC = () => {
           onChangeText={(text: string) => setFormData({ ...formData, email: text })}
           keyboardType="email-address"
           autoCapitalize="none"
-          style={[styles.input, error?.field === 'email' && styles.inputError]}
-          error={error?.field === 'email'}
+          style={styles.input}
+          error={!!emailError}
         />
+        <HelperText type="error" visible={!!emailError}>
+          {emailError}
+        </HelperText>
         <TextInput
           mode="outlined"
           label="Password"
           value={formData.password}
           onChangeText={(text: string) => setFormData({ ...formData, password: text })}
           secureTextEntry
-          style={[styles.input, error?.field === 'password' && styles.inputError]}
-          error={error?.field === 'password'}
+          style={styles.input}
+          error={!!passwordError}
         />
-        {error && (
-          <Text variant="bodySmall" style={styles.error}>
-            {error.message}
-          </Text>
-        )}
+        <HelperText type="error" visible={!!passwordError}>
+          {passwordError}
+        </HelperText>
+        <HelperText type="error" visible={!!generalError} style={styles.generalError}>
+          {generalError}
+        </HelperText>
         <Button
           mode="contained"
           onPress={handleLogin}
@@ -107,7 +122,7 @@ export const LoginScreen: React.FC = () => {
         >
           Don't have an account? Sign up
         </Button>
-      </View>
+      </Surface>
     </KeyboardAvoidingView>
   );
 };
@@ -115,29 +130,24 @@ export const LoginScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   content: {
     flex: 1,
-    padding: 16,
+    padding: 24,
     justifyContent: 'center',
   },
   title: {
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 32,
   },
   input: {
-    marginBottom: 16,
-  },
-  inputError: {
-    borderColor: 'red',
+    marginBottom: 4,
   },
   button: {
-    marginTop: 8,
+    marginTop: 16,
   },
-  error: {
-    color: 'red',
-    marginBottom: 16,
+  generalError: {
     textAlign: 'center',
+    marginBottom: 8,
   },
 }); 

@@ -109,21 +109,28 @@ const ReportManagementScreen = () => {
     setProcessingAction(true);
     try {
       // Ban the user
-      const { error } = await banUser(
+      const banResult = await banUser(
         selectedReport.reported_id,
         user.id,
         banReason || 'Violated community guidelines'
       );
-      
-      if (error) throw error;
-      
+
+      // Check if banResult is an object and has an error property
+      if (banResult && typeof banResult === 'object' && 'error' in banResult && banResult.error) {
+        throw banResult.error;
+      }
+
       // Also resolve the report
-      await resolveReport(
+      const resolveResult = await resolveReport(
         selectedReport.id,
         user.id,
         `User banned. Reason: ${banReason || 'Violated community guidelines'}`
       );
-      
+      // Check resolve result for errors
+      if (resolveResult && typeof resolveResult === 'object' && 'error' in resolveResult && resolveResult.error) {
+        throw resolveResult.error;
+      }
+
       // Remove the resolved report from the list
       setReports(prev => prev.filter(r => r.id !== selectedReport.id));
       setBanDialogVisible(false);
@@ -145,21 +152,28 @@ const ReportManagementScreen = () => {
     setProcessingAction(true);
     try {
       // Delete the post
-      const { error } = await deletePost(
+      const deleteResult = await deletePost(
         selectedReport.reported_id,
         user.id,
         deleteReason || 'Violated community guidelines'
       );
-      
-      if (error) throw error;
-      
+
+      // Check if deleteResult is an object and has an error property
+      if (deleteResult && typeof deleteResult === 'object' && 'error' in deleteResult && deleteResult.error) {
+        throw deleteResult.error;
+      }
+
       // Also resolve the report
-      await resolveReport(
+      const resolveResult = await resolveReport(
         selectedReport.id,
         user.id,
         `Post deleted. Reason: ${deleteReason || 'Violated community guidelines'}`
       );
-      
+      // Check resolve result for errors
+      if (resolveResult && typeof resolveResult === 'object' && 'error' in resolveResult && resolveResult.error) {
+        throw resolveResult.error;
+      }
+
       // Remove the resolved report from the list
       setReports(prev => prev.filter(r => r.id !== selectedReport.id));
       setDeleteDialogVisible(false);

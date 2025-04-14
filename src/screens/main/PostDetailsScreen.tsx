@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, FlatList, Image, ScrollView } from 'react-native';
-import { Text, TextInput, Button, useTheme, ActivityIndicator, Card } from 'react-native-paper';
+import { View, StyleSheet, FlatList, ScrollView } from 'react-native';
+import { Text, TextInput, Button, useTheme, ActivityIndicator, Card, Surface, Divider, List, Avatar } from 'react-native-paper';
 import { useAuth } from '../../contexts/AuthContext';
 import { Post, Comment } from '../../types/services';
 import { postService } from '../../services/post';
@@ -10,6 +10,9 @@ import { PostActions } from '../../components/posts/PostActions';
 import { useResponsive } from '../../hooks/useResponsive';
 import { ResponsiveView } from '../../components/ui/ResponsiveView';
 import { getResponsiveSpacing } from '../../styles/responsive';
+import { formatDistanceToNow } from 'date-fns';
+
+type ListItemProps = { color: string; style?: any };
 
 type Props = HomeStackScreenProps<'PostDetails'>;
 
@@ -33,10 +36,14 @@ export const PostDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const fetchPost = async () => {
     try {
-      const post = await postService.getPost(postId);
-      setPost(post);
-      const isLiked = await postService.isLiked(postId, user?.id || '');
-      setIsLiked(isLiked);
+      setLoading(true);
+      setError(null);
+      const fetchedPost = await postService.getPost(postId);
+      setPost(fetchedPost);
+      if (user && fetchedPost) {
+        const likedStatus = await postService.isLiked(fetchedPost.id, user.id);
+        setIsLiked(likedStatus);
+      }
     } catch (error) {
       console.error('Error fetching post:', error);
       setError('Failed to load post');
@@ -47,6 +54,7 @@ export const PostDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const fetchComments = async () => {
     try {
+      setError(null);
       const response = await getCommentsByPostId(postId);
       if (response.data) {
         setComments(response.data);
@@ -62,6 +70,7 @@ export const PostDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
 
     try {
       setSubmitting(true);
+      setError(null);
       await postService.createComment({
         post_id: postId,
         user_id: user.id,
@@ -71,7 +80,7 @@ export const PostDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
       await fetchComments();
     } catch (error) {
       console.error('Error creating comment:', error);
-      setError('Failed to post comment');
+      setError('Failed to post comment. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -80,133 +89,144 @@ export const PostDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
   const handleLike = async () => {
     if (!user || !post) return;
 
+    const originalLikedState = isLiked;
+    setIsLiked(!originalLikedState);
+
     try {
-      if (isLiked) {
+      if (originalLikedState) {
         await postService.unlikePost(post.id, user.id);
       } else {
         await postService.likePost(post.id, user.id);
       }
-      setIsLiked(!isLiked);
-      await fetchPost();
     } catch (error) {
       console.error('Error toggling like:', error);
+      setIsLiked(originalLikedState);
+      setError('Failed to update like status.');
     }
   };
 
   const handleShare = () => {
-    // Implement share functionality
+    console.log('Share action triggered');
   };
 
   if (loading) {
     return (
-      <ResponsiveView 
-        style={styles.container}
-        desktopStyle={styles.desktopContainer}
-        webStyle={styles.webContainer}
-      >
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
-      </ResponsiveView>
+      <Surface style={[styles.centerContainer, { backgroundColor: theme.colors.background }]}>
+        <ActivityIndicator size="large" animating={true} color={theme.colors.primary} />
+      </Surface>
     );
   }
 
   if (error || !post) {
     return (
-      <ResponsiveView 
-        style={styles.container}
-        desktopStyle={styles.desktopContainer}
-        webStyle={styles.webContainer}
-      >
-        <View style={styles.errorContainer}>
-          <Text>Post not found or an error occurred.</Text>
-        </View>
-      </ResponsiveView>
+      <Surface style={[styles.centerContainer, { backgroundColor: theme.colors.background }]}>
+        <Text variant="titleMedium" style={{ color: theme.colors.error }}>
+          {error || 'Post not found.'}
+        </Text>
+        <Button onPress={fetchPost} style={{ marginTop: 16 }}>Retry</Button>
+      </Surface>
     );
   }
 
-  const renderComment = ({ item }: { item: Comment }) => (
-    <View style={styles.commentContainer}>
-      <Text variant="labelSmall" style={styles.username}>
-        {item.user?.username}
-      </Text>
-      <Text variant="bodyMedium">{item.text}</Text>
-      <Text variant="labelSmall" style={styles.timestamp}>
-        {new Date(item.created_at).toLocaleDateString()}
-      </Text>
-    </View>
-  );
+  const postTimeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
+
+  const renderComment = ({ item }: { item: Comment }) => {
+    const commentTimeAgo = formatDistanceToNow(new Date(item.created_at), { addSuffix: true });
+    return (
+      <List.Item
+        title={item.user?.username || 'Unknown User'}
+        description={item.text}
+        titleStyle={{ color: theme.colors.primary, fontWeight: 'bold' }}
+        descriptionStyle={{ color: theme.colors.onSurface }}
+        descriptionNumberOfLines={10}
+        left={(props: ListItemProps) => (
+          item.user?.profile_picture
+          ? <Avatar.Image {...props} source={{ uri: item.user.profile_picture }} size={32} style={styles.commentAvatar} />
+          : <Avatar.Icon {...props} icon="account" size={32} style={styles.commentAvatar} />
+        )}
+        style={styles.commentContainer}
+      />
+    );
+  };
 
   return (
-    <ResponsiveView 
-      style={styles.container}
+    <ResponsiveView
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
       desktopStyle={styles.desktopContainer}
       webStyle={styles.webContainer}
     >
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={isDesktop ? styles.desktopContentContainer : null}
-      >
-        <Card style={styles.postCard}>
-          <View style={styles.postContainer}>
-            <Text variant="labelSmall" style={styles.username}>
-              {post.user?.username}
-            </Text>
-            <Text variant="bodyLarge" style={styles.content}>
-              {post.content}
-            </Text>
-            {post.image_url && (
-              <Image 
-                source={{ uri: post.image_url }} 
-                style={styles.image} 
-                resizeMode="cover"
-              />
-            )}
-            <Text variant="labelSmall" style={styles.timestamp}>
-              {new Date(post.created_at).toLocaleDateString()}
-            </Text>
+      <FlatList
+        data={comments}
+        renderItem={renderComment}
+        keyExtractor={(item) => item.id}
+        style={styles.listStyle}
+        contentContainerStyle={isDesktop ? styles.desktopContentContainer : styles.mobileContentContainer}
+        ListHeaderComponent={(
+          <Card style={styles.postCard}>
+            <Card.Title
+              title={post.user?.username}
+              titleVariant="titleMedium"
+              subtitle={postTimeAgo}
+              subtitleVariant="bodySmall"
+              left={(props: any) => (
+                post.user?.profile_picture
+                ? <Avatar.Image {...props} source={{ uri: post.user.profile_picture }} size={40} />
+                : <Avatar.Icon {...props} icon="account" size={40} />
+              )}
+            />
+            <Card.Content>
+              <Text variant="bodyLarge" style={styles.content}>
+                {post.content}
+              </Text>
+              {post.image_url && (
+                <Card.Cover
+                  source={{ uri: post.image_url }}
+                  style={styles.image}
+                />
+              )}
+            </Card.Content>
             <PostActions
               post={post}
               onLike={handleLike}
-              onComment={() => {}}
+              onComment={() => { }}
               onShare={handleShare}
               isLiked={isLiked}
             />
-          </View>
-        </Card>
-        
-        <View style={[styles.commentsSection, isDesktop && styles.desktopCommentsSection]}>
-          <FlatList
-            data={comments}
-            renderItem={renderComment}
-            keyExtractor={(item) => item.id}
-            style={styles.commentsList}
-            ListHeaderComponent={
-              <View style={styles.commentInputContainer}>
-                <TextInput
-                  mode="outlined"
-                  value={newComment}
-                  onChangeText={setNewComment}
-                  placeholder="Write a comment..."
-                  style={styles.commentInput}
-                  maxLength={500}
-                  multiline
-                  disabled={submitting}
-                />
-                <Button
-                  mode="contained"
-                  onPress={handleComment}
-                  disabled={!newComment.trim() || submitting}
-                  loading={submitting}
-                  style={styles.commentButton}
-                >
-                  Post
-                </Button>
-              </View>
-            }
-          />
-        </View>
-      </ScrollView>
+            <Divider style={styles.divider} />
+            <View style={styles.commentInputContainer}>
+              <TextInput
+                mode="outlined"
+                value={newComment}
+                onChangeText={setNewComment}
+                placeholder="Write a comment..."
+                style={styles.commentInput}
+                maxLength={500}
+                multiline
+                disabled={submitting}
+              />
+              <Button
+                mode="contained"
+                compact
+                onPress={handleComment}
+                disabled={!newComment.trim() || submitting}
+                loading={submitting}
+                style={styles.commentButton}
+                icon="send"
+              >
+                Post
+              </Button>
+            </View>
+            <Text variant="titleMedium" style={styles.commentsHeader}>Comments</Text>
+          </Card>
+        )}
+        ListEmptyComponent={(
+          !loading ? (
+            <View style={styles.emptyCommentsContainer}>
+              <Text variant="bodyMedium" style={{color: theme.colors.onSurfaceVariant}}>No comments yet.</Text>
+            </View>
+          ) : null
+        )}
+      />
     </ResponsiveView>
   );
 };
@@ -214,24 +234,23 @@ export const PostDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+  },
+  listStyle: {
+    flex: 1,
+  },
+  mobileContentContainer: {
+    paddingBottom: 32,
   },
   desktopContainer: {
-    paddingHorizontal: '15%',
     maxWidth: 1000,
     alignSelf: 'center',
     width: '100%',
   },
   webContainer: {
-    paddingHorizontal: '5%',
   },
   desktopContentContainer: {
     paddingHorizontal: 20,
-  },
-  desktopCommentsSection: {
-    maxWidth: 800,
-    alignSelf: 'center',
-    width: '100%',
+    paddingBottom: 32,
   },
   centerContainer: {
     flex: 1,
@@ -239,68 +258,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
-  error: {
-    color: 'red',
-    textAlign: 'center',
-  },
-  postContainer: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  username: {
-    color: '#666',
-    marginBottom: 4,
+  postCard: {
+    marginBottom: 8,
   },
   content: {
-    marginBottom: 8,
+    marginBottom: 12,
   },
   image: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-    marginBottom: 8,
+    marginTop: 12,
   },
-  timestamp: {
-    color: '#666',
-    marginBottom: 8,
-  },
-  commentsList: {
-    flex: 1,
-  },
-  commentInputContainer: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  commentInput: {
-    marginBottom: 8,
-  },
-  commentButton: {
-    alignSelf: 'flex-end',
+  commentsHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
   },
   commentContainer: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
   },
-  loadingContainer: {
+  commentAvatar: {
+    marginRight: 12,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  commentInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  commentInput: {
     flex: 1,
-    justifyContent: 'center',
+    marginRight: 8,
+  },
+  commentButton: {
+  },
+  emptyCommentsContainer: {
+    padding: 16,
     alignItems: 'center',
   },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  postCard: {
-    marginBottom: 20,
-  },
-  commentsSection: {
-    padding: 16,
-  },
-}); 
+  divider: {
+    marginTop: 8,
+  }
+});
+
+export default PostDetailsScreen; 

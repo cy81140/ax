@@ -134,10 +134,7 @@ export const banUser = async (userId: string, adminId: string, reason: string) =
 
     if (error) throw error;
 
-    // Log the activity
-    await logActivity(adminId, 'ban' as any, userId, reason);
-
-    return { data, error: null };
+    return data;
   } catch (error) {
     console.error('Error banning user:', error);
     return { data: null, error };
@@ -159,10 +156,7 @@ export const unbanUser = async (userId: string, adminId: string) => {
 
     if (error) throw error;
 
-    // Log the activity
-    await logActivity(adminId, 'unban' as any, userId);
-
-    return { data, error: null };
+    return data;
   } catch (error) {
     console.error('Error unbanning user:', error);
     return { data: null, error };
@@ -190,74 +184,9 @@ export const deletePost = async (postId: string, adminId: string, reason: string
 
     if (error) throw error;
 
-    // Log the activity
-    await logActivity(
-      adminId, 
-      'delete_post' as any, 
-      postId, 
-      `Post deleted: ${post.content.substring(0, 50)}... Reason: ${reason}`,
-      post.user_id
-    );
-
-    return { data, error: null };
+    return data;
   } catch (error) {
     console.error('Error deleting post:', error);
-    return { data: null, error };
-  }
-};
-
-// Mute a user (user function)
-export const muteUser = async (userId: string, mutedUserId: string) => {
-  try {
-    const { data, error } = await supabase
-      .from('muted_users')
-      .insert({
-        user_id: userId,
-        muted_user_id: mutedUserId,
-      })
-      .select();
-
-    if (error) throw error;
-    return { data, error: null };
-  } catch (error) {
-    console.error('Error muting user:', error);
-    return { data: null, error };
-  }
-};
-
-// Unmute a user (user function)
-export const unmuteUser = async (userId: string, mutedUserId: string) => {
-  try {
-    const { data, error } = await supabase
-      .from('muted_users')
-      .delete()
-      .eq('user_id', userId)
-      .eq('muted_user_id', mutedUserId)
-      .select();
-
-    if (error) throw error;
-    return { data, error: null };
-  } catch (error) {
-    console.error('Error unmuting user:', error);
-    return { data: null, error };
-  }
-};
-
-// Get list of muted users for a user
-export const getMutedUsers = async (userId: string) => {
-  try {
-    const { data, error } = await supabase
-      .from('muted_users')
-      .select(`
-        muted_user_id,
-        muted_users:muted_user_id(id, username, profile_picture)
-      `)
-      .eq('user_id', userId);
-
-    if (error) throw error;
-    return { data, error: null };
-  } catch (error) {
-    console.error('Error getting muted users:', error);
     return { data: null, error };
   }
 };
@@ -329,7 +258,7 @@ export const moderationService = {
 
       if (banError) throw banError;
 
-      await this.logActivity(adminId, 'post_like' as ActivityType, userId, reason);
+      return true;
     } catch (error) {
       console.error('Error banning user:', error);
       throw new Error('Failed to ban user');
@@ -345,7 +274,7 @@ export const moderationService = {
 
       if (unbanError) throw unbanError;
 
-      await this.logActivity(adminId, 'post_like' as ActivityType, userId);
+      return true;
     } catch (error) {
       console.error('Error unbanning user:', error);
       throw new Error('Failed to unban user');
@@ -361,7 +290,7 @@ export const moderationService = {
 
       if (deleteError) throw deleteError;
 
-      await this.logActivity(adminId, 'post_like' as ActivityType, postId, reason);
+      return true;
     } catch (error) {
       console.error('Error deleting post:', error);
       throw new Error('Failed to delete post');

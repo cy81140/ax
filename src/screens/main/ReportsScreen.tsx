@@ -5,9 +5,9 @@ import { supabase } from '../../services/supabase';
 import { theme } from '../../constants/theme';
 import { useAuth } from '../../hooks/useAuth';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ProfileStackParamList } from '../../navigation/types';
+import { AdminStackParamList } from '../../navigation/types';
 
-type Props = NativeStackScreenProps<ProfileStackParamList, 'Reports'>;
+type Props = NativeStackScreenProps<AdminStackParamList, 'Reports'>;
 
 interface Report {
   id: string;

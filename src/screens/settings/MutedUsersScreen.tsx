@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, Alert } from 'react-native';
-import { Text, Avatar, List, ActivityIndicator, Button, Divider } from 'react-native-paper';
-import { theme } from '../../constants/theme';
-import { getMutedUsers, unmuteUser } from '../../services/moderation';
+import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import { Text, Avatar, List, ActivityIndicator, Button, Divider, Surface, useTheme, Portal, Dialog, HelperText } from 'react-native-paper';
+import { userService } from '../../services/user';
 import { useAuth } from '../../hooks/useAuth';
 
 interface MutedUser {
@@ -16,35 +15,23 @@ interface MutedUser {
 
 const MutedUsersScreen = () => {
   const { user } = useAuth();
+  const theme = useTheme();
   const [mutedUsers, setMutedUsers] = useState<MutedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [userToUnmute, setUserToUnmute] = useState<{ id: string; username: string } | null>(null);
 
   const loadMutedUsers = useCallback(async () => {
     if (!user) return;
-    
     try {
       setError(null);
-      const { data, error } = await getMutedUsers(user.id);
-      
-      if (error) throw error;
-      
-      if (data) {
-        // Transform the data to match our expected format
-        const formattedData = data.map((item: any) => {
-          return {
-            muted_user_id: item.muted_user_id,
-            muted_users: Array.isArray(item.muted_users) 
-              ? item.muted_users[0] 
-              : item.muted_users,
-          };
-        });
-        setMutedUsers(formattedData);
-      }
-    } catch (err) {
+      const data = await userService.getMutedUsers(user.id);
+      setMutedUsers(data || []);
+    } catch (err: any) {
       console.error('Error loading muted users:', err);
-      setError('Unable to load muted users. Please try again.');
+      setError(err?.message || 'Unable to load muted users. Please try again.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -60,61 +47,57 @@ const MutedUsersScreen = () => {
     loadMutedUsers();
   };
 
-  const handleUnmute = async (mutedUserId: string, username: string) => {
-    if (!user) return;
-    
-    Alert.alert(
-      'Unmute User',
-      `Are you sure you want to unmute ${username}?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Unmute',
-          onPress: async () => {
-            try {
-              const { error } = await unmuteUser(user.id, mutedUserId);
-              
-              if (error) throw error;
-              
-              // Remove user from the list
-              setMutedUsers(prev => prev.filter(m => m.muted_user_id !== mutedUserId));
-              Alert.alert('Success', `${username} has been unmuted.`);
-            } catch (err) {
-              console.error('Error unmuting user:', err);
-              Alert.alert('Error', 'Failed to unmute user. Please try again.');
-            }
-          },
-        },
-      ],
-      { cancelable: true }
-    );
+  const showUnmuteDialog = (mutedUserId: string, username: string) => {
+    setUserToUnmute({ id: mutedUserId, username });
+    setDialogVisible(true);
+  };
+
+  const hideDialog = () => {
+    setDialogVisible(false);
+    setUserToUnmute(null);
+  };
+
+  const confirmUnmute = async () => {
+    if (!user || !userToUnmute) return;
+
+    const { id: mutedUserId, username } = userToUnmute;
+    hideDialog();
+
+    try {
+      await userService.unmuteUser(user.id, mutedUserId);
+      setMutedUsers(prev => prev.filter(m => m.muted_user_id !== mutedUserId));
+    } catch (err: any) {
+      console.error('Error unmuting user:', err);
+      setError(err?.message || 'Failed to unmute user. Please try again.');
+    }
   };
 
   const renderMutedUserItem = ({ item }: { item: MutedUser }) => {
     const { muted_users: mutedUser } = item;
-    
+    if (!mutedUser) return null;
+
     return (
       <List.Item
         title={mutedUser.username}
-        left={(props: any) => (
+        titleStyle={{ fontWeight: 'bold' }}
+        left={props => (
           mutedUser.profile_picture ? (
-            <Avatar.Image {...props} size={48} source={{ uri: mutedUser.profile_picture }} />
+            <Avatar.Image {...props} size={40} source={{ uri: mutedUser.profile_picture }} />
           ) : (
             <Avatar.Text
               {...props}
-              size={48}
-              label={mutedUser.username.charAt(0).toUpperCase()}
+              size={40}
+              label={mutedUser.username?.charAt(0).toUpperCase() || ''}
             />
           )
         )}
-        right={(props: any) => (
+        right={props => (
           <Button
             {...props}
-            mode="text"
-            onPress={() => handleUnmute(item.muted_user_id, mutedUser.username)}
+            mode="outlined"
+            onPress={() => showUnmuteDialog(item.muted_user_id, mutedUser.username)}
+            textColor={theme.colors.primary}
+            compact
           >
             Unmute
           </Button>
@@ -125,23 +108,20 @@ const MutedUsersScreen = () => {
 
   if (loading && !refreshing) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator animating={true} color={theme.colors.primary} />
-        <Text style={styles.loadingText}>Loading muted users...</Text>
-      </View>
+      <Surface style={[styles.centerContainer, { backgroundColor: theme.colors.background }]}>
+        <ActivityIndicator animating={true} color={theme.colors.primary} size="large"/>
+      </Surface>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Muted Users</Text>
-      
+    <Surface style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {error && (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
+        <HelperText type="error" visible={!!error} style={styles.errorText}>
+          {error}
+        </HelperText>
       )}
-      
+
       <FlatList
         data={mutedUsers}
         keyExtractor={(item) => item.muted_user_id}
@@ -149,63 +129,66 @@ const MutedUsersScreen = () => {
         ItemSeparatorComponent={() => <Divider />}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.colors.primary]} />
+          <RefreshControl
+             refreshing={refreshing}
+             onRefresh={onRefresh}
+             colors={[theme.colors.primary]}
+             tintColor={theme.colors.primary}
+           />
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No muted users</Text>
-            <Text>You haven't muted any users yet.</Text>
-          </View>
+          !loading ? (
+            <View style={styles.emptyContainer}>
+                <Text variant="titleMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+                    You haven't muted any users yet.
+                </Text>
+            </View>
+          ) : null
         }
       />
-    </View>
+
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+          <Dialog.Title>Unmute User</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium">
+              Are you sure you want to unmute {userToUnmute?.username}?
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={hideDialog}>Cancel</Button>
+            <Button onPress={confirmUnmute} textColor={theme.colors.primary}>Unmute</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+    </Surface>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.background,
     flex: 1,
-    padding: 16,
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyContainer: {
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 32,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    marginTop: 16,
-  },
-  errorContainer: {
-    backgroundColor: '#ffebee',
-    borderRadius: 4,
-    marginBottom: 10,
-    padding: 10,
+    minHeight: 200,
   },
   errorText: {
-    color: '#c62828',
+    margin: 16,
+    textAlign: 'center',
   },
   listContent: {
     paddingBottom: 16,
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center',
-  },
-  loadingText: {
-    color: theme.colors.primary,
-    marginTop: 8,
-  },
-  title: {
-    color: theme.colors.primary,
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
+    flexGrow: 1,
   },
 });
 
-export default MutedUsersScreen; 
+export default MutedUsersScreen;

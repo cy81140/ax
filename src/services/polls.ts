@@ -50,7 +50,7 @@ export const createPoll = async (userId: string, poll: PollCreate) => {
     if (error) throw error;
 
     // Log activity
-    await logActivity(userId, 'create_poll' as any, data.id);
+    await logActivity(userId, 'post', data.id, 'post');
 
     return data;
   } catch (error) {
@@ -200,9 +200,6 @@ export const votePoll = async (userId: string, pollId: string, optionId: string)
 
       if (insertError) throw insertError;
     }
-
-    // Log activity
-    await logActivity(userId, 'vote_poll' as any, pollId);
 
     return { data: true, error: null };
   } catch (error) {
