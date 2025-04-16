@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Image, View } from 'react-native';
 import { TextInput, Button, Text, useTheme, Surface, HelperText } from 'react-native-paper';
 import { useAuth } from '../../contexts/AuthContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -95,6 +95,13 @@ const RegisterScreen = ({ navigation }: Props) => {
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <Surface style={[styles.content, { backgroundColor: theme.colors.background }]}>
+          <View style={styles.logoContainer}>
+            <Image 
+              source={require('../../../assets/app-logo.png')} 
+              style={styles.logo} 
+              resizeMode="contain"
+            />
+          </View>
           <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.primary }]}>
             Create Account
           </Text>
@@ -189,6 +196,14 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 24,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  logo: {
+    width: 100,
+    height: 100,
   },
   title: {
     textAlign: 'center',

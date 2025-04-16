@@ -2,14 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { Text, Avatar, List, ActivityIndicator, Button, Divider, Surface, useTheme, Portal, Dialog, HelperText } from 'react-native-paper';
 import { userService } from '../../services/user';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../contexts/AuthContext';
+import { User } from '../../types/services';
 
 interface MutedUser {
   muted_user_id: string;
   muted_users: {
     id: string;
     username: string;
-    profile_picture: string | null;
+    profile_picture: string | null | undefined;
   };
 }
 
@@ -28,7 +29,18 @@ const MutedUsersScreen = () => {
     try {
       setError(null);
       const data = await userService.getMutedUsers(user.id);
-      setMutedUsers(data || []);
+      
+      // Convert the userService response to match our MutedUser interface
+      const convertedData: MutedUser[] = data.map(item => ({
+        muted_user_id: item.muted_user_id,
+        muted_users: {
+          id: item.muted_users.id,
+          username: item.muted_users.username,
+          profile_picture: item.muted_users.profile_picture || null
+        }
+      }));
+      
+      setMutedUsers(convertedData);
     } catch (err: any) {
       console.error('Error loading muted users:', err);
       setError(err?.message || 'Unable to load muted users. Please try again.');
@@ -80,7 +92,7 @@ const MutedUsersScreen = () => {
       <List.Item
         title={mutedUser.username}
         titleStyle={{ fontWeight: 'bold' }}
-        left={props => (
+        left={(props: any) => (
           mutedUser.profile_picture ? (
             <Avatar.Image {...props} size={40} source={{ uri: mutedUser.profile_picture }} />
           ) : (
@@ -91,7 +103,7 @@ const MutedUsersScreen = () => {
             />
           )
         )}
-        right={props => (
+        right={(props: any) => (
           <Button
             {...props}
             mode="outlined"

@@ -17,7 +17,7 @@ import {
   banUser, 
   deletePost 
 } from '../../services/moderation';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../contexts/AuthContext';
 import { Report } from '../../services/moderation';
 import { formatDistanceToNow } from 'date-fns';
 

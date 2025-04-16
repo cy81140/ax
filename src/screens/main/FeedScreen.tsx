@@ -3,7 +3,7 @@ import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { Text, Card, Avatar, Button, ActivityIndicator } from 'react-native-paper';
 import { supabase } from '../../services/supabase';
 import { theme } from '../../constants/theme';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../contexts/AuthContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { HomeStackParamList } from '../../navigation/types';
 import { MaterialCommunityIcons } from '@expo/vector-icons';

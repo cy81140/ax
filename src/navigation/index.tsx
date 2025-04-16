@@ -6,9 +6,11 @@ import {
   RootStackParamList, 
   AuthStackParamList, 
   MainTabParamList, 
-  ChatStackParamList, 
+  ChatStackParamList,
   ProfileStackParamList,
-  HomeStackParamList
+  HomeStackParamList,
+  ProvinceChatStackParamList,
+  AdminStackParamList
 } from './types';
 import { useAuth } from '../contexts/AuthContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -19,14 +21,20 @@ import ThemedAppbar from '../components/ThemedAppbar';
 import { LoginScreen, RegisterScreen } from '../screens/auth';
 import {
   HomeScreen,
-  ChatScreen,
   CreateScreen,
   SearchScreen,
   ProfileScreen,
-  ChatRoomScreen,
   ActivityFeedScreen,
   PostDetailsScreen,
-  NotificationsScreen
+  NotificationsScreen,
+  EditProfileScreen,
+  RegionListScreen,
+  ProvinceListScreen,
+  ProvinceChatListScreen,
+  ProvinceChatRoomScreen,
+  FeedScreen,
+  AdminPanelScreen,
+  ReportsScreen
 } from '../screens/main';
 
 // Import settings screens
@@ -39,6 +47,8 @@ const MainTab = createMaterialBottomTabNavigator<MainTabParamList>();
 const ChatStack = createNativeStackNavigator<ChatStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
+const ProvinceChatStack = createNativeStackNavigator<ProvinceChatStackParamList>();
+const AdminStack = createNativeStackNavigator<AdminStackParamList>();
 
 /**
  * Authentication Navigator
@@ -79,26 +89,38 @@ const HomeNavigator = () => {
 };
 
 /**
- * Chat Navigator
- * Handles chat rooms and messaging
+ * Chat Navigator (Using NEW Province System)
+ * Handles browsing regions/provinces and province chat rooms
  */
 const ChatNavigator = () => {
   return (
-    <ChatStack.Navigator>
-      <ChatStack.Screen 
-        name="ChatList" 
-        component={ChatScreen} 
-        options={{ headerShown: false }}
+    <ProvinceChatStack.Navigator initialRouteName="RegionList">
+      <ProvinceChatStack.Screen 
+        name="RegionList" 
+        component={RegionListScreen}
+        options={{ title: 'Regions' }}
       />
-      <ChatStack.Screen 
-        name="ChatRoom" 
-        component={ChatRoomScreen as React.ComponentType<any>}
+      <ProvinceChatStack.Screen 
+        name="ProvinceList" 
+        component={ProvinceListScreen}
         options={({ route }) => ({ 
-          title: route.params.roomName,
+          title: (route.params as { regionName?: string })?.regionName || 'Provinces', 
+        })}
+      />
+      <ProvinceChatStack.Screen 
+        name="MyProvinceChats"
+        component={ProvinceChatListScreen}
+        options={{ title: 'My Chats' }}
+      />
+      <ProvinceChatStack.Screen 
+        name="ProvinceChatRoom"
+        component={ProvinceChatRoomScreen}
+        options={({ route }) => ({ 
+          title: (route.params as { provinceName?: string })?.provinceName || 'Chat',
           headerBackTitle: 'Back',
         })}
       />
-    </ChatStack.Navigator>
+    </ProvinceChatStack.Navigator>
   );
 };
 
@@ -113,6 +135,14 @@ const ProfileNavigator = () => {
         name="Profile" 
         component={ProfileScreen} 
         options={{ headerShown: false }}
+      />
+      <ProfileStack.Screen
+        name="EditProfile"
+        component={EditProfileScreen}
+        options={{
+          title: 'Edit Profile',
+          headerBackTitle: 'Back',
+        }}
       />
       <ProfileStack.Screen 
         name="Settings" 
@@ -131,6 +161,27 @@ const ProfileNavigator = () => {
         }}
       />
     </ProfileStack.Navigator>
+  );
+};
+
+/**
+ * Admin Navigator (Placeholder)
+ * Handles admin-specific screens like reports and moderation
+ */
+const AdminNavigator = () => {
+  return (
+    <AdminStack.Navigator initialRouteName="AdminPanel">
+      <AdminStack.Screen 
+        name="AdminPanel" 
+        component={AdminPanelScreen}
+        options={{ title: 'Admin Panel' }}
+      />
+      <AdminStack.Screen 
+        name="Reports" 
+        component={ReportsScreen}
+        options={{ title: 'Reports' }}
+      />
+    </AdminStack.Navigator>
   );
 };
 
@@ -218,8 +269,14 @@ const MainNavigator = () => {
  * The main navigation container that handles auth state and theme
  */
 export const Navigation = () => {
-  const { user } = useAuth();
+  const { user, session, loading } = useAuth();
   const { theme } = useTheme();
+
+  const isAdmin = (user as any)?.is_admin === true;
+
+  if (loading) {
+    return null;
+  }
 
   return (
     <NavigationContainer theme={{
@@ -234,8 +291,13 @@ export const Navigation = () => {
       }
     }}>
       <RootStack.Navigator screenOptions={{ headerShown: false }}>
-        {user ? (
-          <RootStack.Screen name="Main" component={MainNavigator} />
+        {user && session ? (
+          <>
+            <RootStack.Screen name="Main" component={MainNavigator} />
+            {isAdmin && (
+              <RootStack.Screen name="Admin" component={AdminNavigator} />
+            )}
+          </>
         ) : (
           <RootStack.Screen name="Auth" component={AuthNavigator} />
         )}

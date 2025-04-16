@@ -3,9 +3,21 @@ import { createPoll as createPollService } from './polls';
 import { AminoError, ErrorTypes } from '../utils/errors';
 import { Post, Comment, User, Poll, PollOption, PollVote } from '../types/services';
 
+// Add a properly typed StorageError interface for Supabase storage errors
+interface StorageError {
+  message: string;
+  statusCode?: number;
+}
+
 // Posts
 export const createPost = async (post: Omit<Post, 'id' | 'created_at'>): Promise<Post> => {
   try {
+    // Check if supabase auth is available
+    const currentUser = supabase.auth.getUser();
+    if (!currentUser) {
+      throw new Error('User not authenticated');
+    }
+
     const { data, error } = await supabase
       .from('posts')
       .insert({
@@ -18,7 +30,10 @@ export const createPost = async (post: Omit<Post, 'id' | 'created_at'>): Promise
       .select('*')
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error creating post - RLS error details:', error);
+      throw error;
+    }
     return data;
   } catch (error) {
     console.error('Error creating post:', error);
@@ -150,11 +165,22 @@ export const uploadImage = async (filePath: string, file: Blob) => {
   }
 
   try {
+    // Now upload the file. Supabase client handles auth token implicitly.
     const { data, error } = await supabase.storage
       .from('images')
-      .upload(filePath, file);
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Storage RLS Error uploading image:', error);
+      throw new AminoError(
+        `Failed to upload image: ${error.message}`,
+        'STORAGE_ERROR', // Use string literal instead of enum
+        (error as any).statusCode || 500
+      );
+    }
 
     // Get the public URL
     const { data: publicUrlData } = supabase.storage
@@ -174,11 +200,22 @@ export const uploadVideo = async (filePath: string, file: Blob) => {
   }
 
   try {
+    // Now upload the file. Supabase client handles auth token implicitly.
     const { data, error } = await supabase.storage
       .from('videos')
-      .upload(filePath, file);
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Storage RLS Error uploading video:', error);
+      throw new AminoError(
+        `Failed to upload video: ${error.message}`,
+        'STORAGE_ERROR', // Use string literal instead of enum
+        (error as any).statusCode || 500
+      );
+    }
 
     // Get the public URL
     const { data: publicUrlData } = supabase.storage
@@ -250,6 +287,72 @@ export const isLiked = async (postId: string, userId: string) => {
   } catch (error) {
     console.error('Error checking like status:', error);
     throw error;
+  }
+};
+
+// Upload profile picture to a dedicated bucket
+// Accepts userId as a parameter
+export const uploadProfileImage = async (userId: string, filePath: string, file: Blob) => {
+  if (!userId || !filePath || !file) {
+    throw new AminoError('User ID, file path and file are required', ErrorTypes.VALIDATION_ERROR, 400);
+  }
+
+  try {
+    // Set the path to include user ID for organization and ownership
+    const securePath = `${userId}/${filePath.split('/').pop()}`;
+
+    console.log('Uploading profile image with path:', securePath);
+
+    // Now upload the file. Supabase client handles auth implicitly.
+    const { data, error } = await supabase.storage
+      .from('profiles')
+      .upload(securePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+
+    if (error) {
+      console.error('Storage RLS Error during profile image upload:', error);
+      
+      // Fallback to placeholder avatar ONLY on storage error
+      const username = 'user'; // Cannot determine username here safely
+      const encodedUsername = encodeURIComponent(username);
+      const placeholderUrl = `https://ui-avatars.com/api/?name=${encodedUsername}&background=random&size=200`;
+      
+      console.log('Using placeholder avatar due to storage errors:', placeholderUrl);
+      
+      // Return an object indicating fallback
+      return {
+        error: { message: error.message, fallback: true, publicUrl: placeholderUrl },
+        publicUrl: null,
+        path: null
+      };
+    }
+
+    // Get the public URL
+    const { data: publicUrlData } = supabase.storage
+      .from('profiles')
+      .getPublicUrl(securePath);
+
+    return { publicUrl: publicUrlData.publicUrl, path: data?.path, error: null };
+  } catch (error: unknown) {
+    console.error('Exception during profile image upload:', error);
+    // Generic fallback for any other exception
+    const username = 'user'; // Cannot determine username here safely
+    const encodedUsername = encodeURIComponent(username);
+    const placeholderUrl = `https://ui-avatars.com/api/?name=${encodedUsername}&background=random&size=200`;
+    
+    console.log('Using placeholder avatar due to unexpected error:', placeholderUrl);
+    
+    return {
+        error: { 
+            message: error instanceof Error ? error.message : 'Unknown upload error', 
+            fallback: true, 
+            publicUrl: placeholderUrl 
+        },
+        publicUrl: null,
+        path: null
+    };
   }
 };
 

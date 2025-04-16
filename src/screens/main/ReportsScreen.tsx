@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, FlatList } from 'react-native';
-import { Text, Card, Avatar, Button, Chip, ActivityIndicator } from 'react-native-paper';
+import { Text, Surface, ActivityIndicator, Card, Button, Chip, Divider, Badge, Menu, IconButton, Avatar } from 'react-native-paper';
 import { supabase } from '../../services/supabase';
 import { theme } from '../../constants/theme';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../contexts/AuthContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AdminStackParamList } from '../../navigation/types';
 

@@ -12,6 +12,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MainStackParamList, MainTabParamList } from '../../types/navigation';
 import { postService } from '../../services/post';
 import { User, Post } from '../../types/services';
+import { supabase } from '../../services/supabase';
 
 type CreateScreenNavigationProp = NativeStackNavigationProp<MainTabParamList, 'Create'>;
 
@@ -105,6 +106,14 @@ const CreateScreen = () => {
       setError('You must be logged in to create a post');
       return;
     }
+    
+    // Verify user authentication state
+    const { data: authData } = await supabase.auth.getSession();
+    if (!authData.session) {
+      setError('Authentication session expired. Please log in again.');
+      return;
+    }
+    
     if (!postContent.trim() && contentType === 'text') {
       setError('Post content cannot be empty');
       return;
@@ -123,14 +132,16 @@ const CreateScreen = () => {
         }
       }
 
-      const postPayload: { user_id: string; content: string; image_url?: string; likes_count: number; comments_count: number } = {
+      const postPayload = {
         user_id: user.id,
         content: postContent.trim(),
         image_url: contentType === 'image' ? uploadedMediaUrl : undefined,
+        video_url: contentType === 'video' ? uploadedMediaUrl : undefined,
         likes_count: 0,
         comments_count: 0,
       };
 
+      console.log('Creating post with user_id:', user.id);
       const response = await createPost(postPayload);
       const postData = 'data' in response ? response.data : response;
       const postError = 'error' in response ? response.error : null;

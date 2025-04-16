@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { User } from '../types/services';
 import { Session } from '@supabase/supabase-js';
+import { provinceChatService } from '../services/provinceChatService';
 
 interface AuthContextType {
   user: User | null;
@@ -52,30 +53,70 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setUser(null);
         setLoading(false);
+        // Ensure subscriptions are cleaned up on logout/session expiry via listener
+        await provinceChatService.unsubscribeFromAllProvinceChats();
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const createUserProfile = async (userId: string, email: string, username: string) => {
+  const createUserProfile = async (userId: string, email: string, username: string): Promise<boolean> => {
     try {
-      const { error: profileError } = await supabase.from('users').insert([
-        {
+      console.log(`Creating/updating user profile for ${userId} with email: ${email}, username: ${username}`);
+      
+      // Get current user to verify authentication
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData?.user) {
+        console.error('No authenticated user found when creating profile');
+        return false;
+      }
+      
+      // Ensure we're only creating a profile for the current authenticated user (RLS requirement)
+      if (authData.user.id !== userId) {
+        console.error('Auth mismatch: Cannot create profile for another user');
+        return false;
+      }
+      
+      // Try inserting first - RLS policies should allow this for the current user
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert([{
           id: userId,
           email,
           username,
-        },
-      ]);
-
-      if (profileError) {
-        console.error('Error creating user profile:', profileError);
-        throw profileError;
+        }]);
+        
+      // If insert succeeds, we're done
+      if (!insertError) {
+        console.log('Successfully created new user profile');
+        return true;
       }
       
-      return true;
+      // If we get duplicate key error, the profile already exists
+      if (insertError.code === '23505') {
+        console.log('Profile already exists. Updating...');
+        
+        // Try updating the existing profile
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ username, email })
+          .eq('id', userId);
+          
+        if (updateError) {
+          console.error('Error updating existing profile:', updateError);
+          return false;
+        }
+        
+        console.log('Successfully updated existing profile');
+        return true;
+      }
+      
+      // For other errors, log and return false
+      console.error('Error creating user profile:', insertError);
+      return false;
     } catch (error) {
-      console.error('Failed to create user profile:', error);
+      console.error('Failed to create/update user profile:', error);
       return false;
     }
   };
@@ -88,10 +129,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
-      setUser(data);
+      if (error) {
+        // If user doesn't exist in our database, create a profile
+        if (error.code === 'PGRST116') {
+          console.log('User not found in users table, creating profile during fetch');
+          
+          // Get user details from auth
+          const { data: authData } = await supabase.auth.getUser();
+          if (authData?.user) {
+            const email = authData.user.email || `${userId}@placeholder.com`;
+            const username = authData.user.user_metadata?.username || `user_${Date.now().toString().slice(-6)}`;
+            
+            const success = await createUserProfile(userId, email, username);
+            if (success) {
+              // Try fetching again
+              const { data: newData, error: newError } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', userId)
+                .single();
+                
+              if (newError) {
+                console.error('Error fetching newly created user:', newError);
+                setUser(null);
+              } else {
+                setUser(newData);
+              }
+            } else {
+              setUser(null);
+            }
+          } else {
+            setUser(null);
+          }
+        } else {
+          console.error('Error fetching user:', error);
+          setUser(null);
+        }
+      } else {
+        setUser(data);
+      }
     } catch (error) {
-      console.error('Error fetching user:', error);
+      console.error('Exception fetching user:', error);
       setUser(null);
     } finally {
       setLoading(false);
@@ -137,8 +215,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
+    // Unsubscribe from all province chat channels first
+    await provinceChatService.unsubscribeFromAllProvinceChats();
+    // Then sign out from Supabase auth
     const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    if (error) {
+      // Even if Supabase signout fails, we cleared local state via the listener
+      console.error("Error signing out from Supabase Auth:", error);
+      // Depending on desired behavior, you might still want to throw the error
+      // throw error; 
+    } else {
+      console.log('Successfully signed out and unsubscribed from channels.');
+    }
   };
 
   const value = {

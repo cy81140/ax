@@ -3,8 +3,8 @@ import { View, StyleSheet, ScrollView } from 'react-native';
 import { Text, Button, Avatar, Card, List, Divider, useTheme, Surface, ActivityIndicator } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useAuth } from '../../hooks/useAuth';
-import { ProfileStackParamList } from '../../navigation/types';
+import { useAuth } from '../../contexts/AuthContext';
+import { ProfileStackParamList, RootStackParamList } from '../../navigation/types';
 import { isUserAdmin } from '../../services/moderation';
 import { supabase } from '../../services/supabase';
 
@@ -17,14 +17,15 @@ interface UserProfile {
   is_admin?: boolean;
 }
 
-type ProfileNavigationProp = NativeStackNavigationProp<ProfileStackParamList>;
+// Use RootStackParamList for navigation prop to allow navigating outside ProfileStack
+type ProfileScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 // Define type for props passed to List.Item left/right render functions
 type ListItemProps = { color: string; style?: any };
 
 const ProfileScreen = () => {
   const { user, signOut } = useAuth();
-  const navigation = useNavigation<ProfileNavigationProp>();
+  const navigation = useNavigation<ProfileScreenNavigationProp>();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const theme = useTheme();
@@ -65,27 +66,23 @@ const ProfileScreen = () => {
   }, [user]);
 
   const handleEditProfile = () => {
-    navigation.navigate('EditProfile');
+    navigation.navigate('Main', { screen: 'ProfileTab', params: { screen: 'EditProfile' } });
   };
 
   const handleSettings = () => {
-    navigation.navigate('Settings');
+    navigation.navigate('Main', { screen: 'ProfileTab', params: { screen: 'Settings' } });
   };
 
   const handleMutedUsers = () => {
-    navigation.navigate('MutedUsers');
+    navigation.navigate('Main', { screen: 'ProfileTab', params: { screen: 'MutedUsers' } });
   };
 
   const handleReports = () => {
-    // Check if Reports screen exists in ProfileStackParamList
-    // navigation.navigate('Reports');
-    console.log("Navigate to Reports (TODO)");
+    navigation.navigate('Admin', { screen: 'Reports' });
   };
 
   const handleAdminPanel = () => {
-    // Check if AdminPanel screen exists in ProfileStackParamList
-    // navigation.navigate('AdminPanel');
-    console.log("Navigate to Admin Panel (TODO)");
+    navigation.navigate('Admin', { screen: 'AdminPanel' });
   };
 
   if (loading) {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, KeyboardAvoidingView, Platform, Image, View } from 'react-native';
 import { TextInput, Button, Text, useTheme, Surface, HelperText } from 'react-native-paper';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigation } from '@react-navigation/native';
@@ -75,6 +75,13 @@ export const LoginScreen: React.FC = () => {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 50 : 0}
     >
       <Surface style={[styles.content, { backgroundColor: theme.colors.background }]}>
+        <View style={styles.logoContainer}>
+          <Image 
+            source={require('../../../assets/app-logo.png')} 
+            style={styles.logo} 
+            resizeMode="contain"
+          />
+        </View>
         <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.primary }]}>
           Welcome Back
         </Text>
@@ -135,6 +142,14 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 24,
     justifyContent: 'center',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  logo: {
+    width: 100,
+    height: 100,
   },
   title: {
     textAlign: 'center',

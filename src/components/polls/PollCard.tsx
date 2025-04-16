@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Card, Text, RadioButton, Checkbox, Button, ProgressBar, Caption } from 'react-native-paper';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../contexts/AuthContext';
 import { Poll, getPollResults, votePoll } from '../../services/polls';
 import { theme } from '../../constants/theme';
 

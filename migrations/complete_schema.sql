@@ -77,6 +77,16 @@ CREATE TABLE IF NOT EXISTS regions (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Provinces table
+CREATE TABLE IF NOT EXISTS provinces (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT UNIQUE NOT NULL,
+  description TEXT,
+  region_id UUID REFERENCES regions(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Group chats (for province/region chatrooms)
 CREATE TABLE IF NOT EXISTS group_chats (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -97,6 +107,14 @@ CREATE TABLE IF NOT EXISTS group_chat_members (
   UNIQUE(group_id, user_id)
 );
 
+-- Typing indicators
+CREATE TABLE IF NOT EXISTS typing_indicators (
+  group_id UUID NOT NULL REFERENCES group_chats(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (group_id, user_id)
+);
+
 --------------------------------
 -- CONTENT
 --------------------------------
@@ -113,7 +131,9 @@ CREATE TABLE IF NOT EXISTS posts (
   is_deleted BOOLEAN DEFAULT false,
   deleted_at TIMESTAMPTZ,
   deleted_by UUID REFERENCES users(id),
-  delete_reason TEXT
+  delete_reason TEXT,
+  likes_count INTEGER DEFAULT 0,
+  comments_count INTEGER DEFAULT 0
 );
 
 -- Create index on post content for faster full-text search
@@ -209,7 +229,8 @@ CREATE TABLE IF NOT EXISTS group_messages (
   group_id UUID NOT NULL REFERENCES group_chats(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  is_system_message BOOLEAN DEFAULT false
 );
 
 -- Create indexes for messages
@@ -277,6 +298,8 @@ ALTER TABLE group_chat_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE group_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE provinces ENABLE ROW LEVEL SECURITY;
+ALTER TABLE typing_indicators ENABLE ROW LEVEL SECURITY;
 
 -- User policies
 CREATE POLICY "Users can view their own profile" 
@@ -365,6 +388,26 @@ CREATE POLICY "Users can send messages to their groups"
     ) AND auth.uid() = user_id
   );
 
+-- Typing indicator policies
+CREATE POLICY "Users can set typing indicators in their groups"
+  ON typing_indicators FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can view typing indicators in their groups"
+  ON typing_indicators FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM group_chat_members
+      WHERE group_chat_members.user_id = auth.uid()
+      AND group_chat_members.group_id = typing_indicators.group_id
+    )
+  );
+
+CREATE POLICY "Users can delete their typing indicators"
+  ON typing_indicators FOR DELETE USING (auth.uid() = user_id);
+
+-- Province policies
+CREATE POLICY "Users can view all provinces"
+  ON provinces FOR SELECT USING (true);
+
 -- Report policies
 CREATE POLICY "Users can view their own reports" 
   ON reports FOR SELECT USING (auth.uid() = reporter_id);
@@ -428,4 +471,22 @@ CREATE TRIGGER update_polls_updated_at
 
 CREATE TRIGGER update_group_chats_updated_at
   BEFORE UPDATE ON group_chats
-  FOR EACH ROW EXECUTE PROCEDURE update_updated_at(); 
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
+
+CREATE TRIGGER update_provinces_updated_at
+  BEFORE UPDATE ON provinces
+  FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
+
+-- Create a trigger to automatically create a profile when a new user is created
+CREATE OR REPLACE FUNCTION public.create_profile_for_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.users (id, email, username)
+  VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'username');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.create_profile_for_user(); 

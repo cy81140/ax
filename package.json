@@ -7,7 +7,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "dependencies": {
     "@expo/metro-runtime": "~3.1.0",
@@ -23,7 +25,9 @@
     "date-fns": "^4.1.0",
     "expo": "~50.0.5",
     "expo-constants": "~15.4.5",
+    "expo-haptics": "~12.8.1",
     "expo-image-picker": "~14.7.1",
+    "expo-linear-gradient": "~12.7.2",
     "expo-linking": "~6.2.2",
     "expo-notifications": "^0.27.8",
     "expo-secure-store": "~12.8.1",

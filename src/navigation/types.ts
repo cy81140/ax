@@ -1,14 +1,19 @@
 import { NavigatorScreenParams } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
+// No need to import param lists defined in this same file
+// import { AuthStackParamList } from './AuthStack'; 
+// import { MainTabParamList } from './MainTab';
+// import { AdminStackParamList } from './AdminStack';
+
 /**
  * Root Stack Parameter List
- * Contains the top-level navigation paths
+ * Contains the top-level navigation paths including nested navigators
  */
 export type RootStackParamList = {
-  Auth: undefined;
-  Main: undefined;
-  Admin: undefined;
+  Auth: NavigatorScreenParams<AuthStackParamList>; // Use NavigatorScreenParams for nested stacks
+  Main: NavigatorScreenParams<MainTabParamList>;
+  Admin: NavigatorScreenParams<AdminStackParamList>;
 };
 
 /**
@@ -26,12 +31,12 @@ export type AuthStackParamList = {
  * Contains all the tabs in the main bottom tab navigation
  */
 export type MainTabParamList = {
-  Home: undefined;
-  Chat: undefined;
-  Create: undefined;
-  Search: undefined;
-  Activity: undefined;
-  ProfileTab: undefined;
+  Home: NavigatorScreenParams<HomeStackParamList>; // Nested Home stack
+  Chat: NavigatorScreenParams<ProvinceChatStackParamList>; // Nested Province Chat stack
+  Create: undefined; // Assuming Create is a single screen
+  Search: undefined; // Assuming Search is a single screen
+  Activity: undefined; // Assuming Activity is a single screen
+  ProfileTab: NavigatorScreenParams<ProfileStackParamList>; // Nested Profile stack
 };
 
 /**
@@ -44,7 +49,7 @@ export type HomeStackParamList = {
 };
 
 /**
- * Chat Stack Parameter List
+ * Chat Stack Parameter List (Original/Generic - Keep if needed for other features)
  * Contains screens accessible from the Chat tab
  */
 export type ChatStackParamList = {
@@ -55,6 +60,17 @@ export type ChatStackParamList = {
     roomDescription?: string;
     regionName?: string;
   };
+};
+
+/**
+ * Province Chat Stack Parameter List (NEW)
+ * Contains screens for browsing regions/provinces and province chats
+ */
+export type ProvinceChatStackParamList = {
+  RegionList: undefined;
+  ProvinceList: { regionId: string; regionName?: string };
+  MyProvinceChats: undefined; // Screen to list chats user is in
+  ProvinceChatRoom: { provinceChatId: string; provinceName: string };
 };
 
 /**
@@ -118,6 +134,9 @@ export type HomeStackScreenProps<T extends keyof HomeStackParamList> =
 
 export type ChatStackScreenProps<T extends keyof ChatStackParamList> = 
   NativeStackScreenProps<ChatStackParamList, T>;
+
+export type ProvinceChatStackScreenProps<T extends keyof ProvinceChatStackParamList> = 
+  NativeStackScreenProps<ProvinceChatStackParamList, T>;
 
 export type ProfileStackScreenProps<T extends keyof ProfileStackParamList> = 
   NativeStackScreenProps<ProfileStackParamList, T>;

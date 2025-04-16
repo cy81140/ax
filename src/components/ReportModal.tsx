@@ -4,7 +4,7 @@ import { Button, Text, TextInput, RadioButton, Title } from 'react-native-paper'
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { submitReport, ReportType } from '../services/moderation';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ReportModalProps {
   visible: boolean;

@@ -15,15 +15,101 @@ export const userService = {
   },
 
   async updateProfile(userId: string, updates: Partial<Omit<User, 'id' | 'created_at'>>): Promise<User> {
-    const { data, error } = await supabase
-      .from('users')
-      .update(updates)
-      .eq('id', userId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    try {
+      console.log(`Updating profile for user ${userId} with:`, updates);
+      
+      // First ensure we're only updating our own profile (RLS check)
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData?.user || authData.user.id !== userId) {
+        throw new Error('You can only update your own profile');
+      }
+      
+      // First try a direct update and see if any rows are affected
+      const { data: updateData, error: updateError } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('id', userId)
+        .select()
+        .single();
+      
+      // If the update succeeds, return the updated data
+      if (!updateError) {
+        console.log('Profile updated successfully');
+        return updateData;
+      }
+      
+      // If we get a "no rows returned" error, the profile might not exist yet
+      if (updateError.code === 'PGRST116') {
+        console.log(`User ${userId} not found in users table. Trying upsert...`);
+        
+        // Use upsert to handle both insert and update cases
+        const { data: upsertData, error: upsertError } = await supabase
+          .from('users')
+          .upsert({
+            id: userId,
+            ...updates,
+            // If username is not in updates, generate one
+            username: updates.username || `user_${Date.now()}`,
+            // If email is not in updates, use a placeholder
+            email: updates.email || `${userId}@placeholder.com`
+          })
+          .select()
+          .single();
+        
+        if (upsertError) {
+          console.error('Upsert error:', upsertError);
+          
+          // If there's an RLS policy error, try a more direct approach
+          if (upsertError.code === '42501') { // RLS policy violation
+            console.log('RLS policy violation. Retrying with explicit auth...');
+            
+            // For RLS policy errors, try direct insert first
+            const { data: insertData, error: insertError } = await supabase
+              .from('users')
+              .insert({
+                id: userId,
+                ...updates,
+                username: updates.username || `user_${Date.now()}`,
+                email: updates.email || `${userId}@placeholder.com`
+              })
+              .select()
+              .single();
+              
+            if (!insertError) {
+              return insertData;
+            }
+            
+            // If insert fails with duplicate key, try update once more
+            if (insertError.code === '23505') {
+              console.log('Profile exists (duplicate key). Retrying update...');
+              
+              const { data: retryData, error: retryError } = await supabase
+                .from('users')
+                .update(updates)
+                .eq('id', userId)
+                .select()
+                .single();
+                
+              if (retryError) throw retryError;
+              return retryData;
+            }
+            
+            throw insertError;
+          }
+          
+          // For any other error with upsert, throw it
+          throw upsertError;
+        }
+        
+        return upsertData;
+      }
+      
+      // For any other error, throw it
+      throw updateError;
+    } catch (error) {
+      console.error('Error in updateProfile:', error);
+      throw error;
+    }
   },
 
   async followUser(followerId: string, followingId: string): Promise<void> {

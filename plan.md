@@ -373,4 +373,119 @@ graph LR
 1. **Scalability:**
    - As the user base grows, ensure the app can handle high traffic and large volumes of posts/messages.
 2. **User Retention:**
-   - Without multiple communities, users may lose interest over time. Consider gamification or rewards to keep them engaged. 
+   - Without multiple communities, users may lose interest over time. Consider gamification or rewards to keep them engaged.
+
+# Plan: Rebuilding the Chat System (Region/Province Focused)
+
+**Goal:** Create a robust, scalable, and maintainable core chat system for the application using React Native and Supabase, centered around predefined Regions and Provinces.
+
+**Phase 1: Foundation & Schema Design**
+
+1.  **Define Core Features (V1):**
+    *   User Authentication (Leveraging existing `useAuth`).
+    *   Browsing Chats by Region and Province.
+    *   Chat Membership: Users joining/leaving predefined Province chats.
+    *   Messaging: Sending text messages within Province chats.
+    *   Realtime Updates: New messages appear instantly for members of a Province chat.
+    *   Basic Message History Loading within a Province chat.
+
+2.  **Supabase Schema Design:**
+    *   **`users` Table:** (Exists, ensure profile info like `username`, `profile_picture` is available).
+    *   **`regions` Table:** (Likely exists from previous schema, ensure it's suitable)
+        *   `id` (uuid, pk)
+        *   `name` (text, unique)
+        *   `description` (text, nullable)
+        *   `created_at` (timestamptz)
+        *   `updated_at` (timestamptz)
+    *   **`province_chats` Table:** (Replaces `chats`, equivalent to old `group_chats`)
+        *   `id` (uuid, pk)
+        *   `region_id` (uuid, fk to `regions.id`) 
+        *   `name` (text) // Province Name
+        *   `description` (text, nullable)
+        *   `created_at` (timestamptz) // Should be pre-populated
+        *   `updated_at` (timestamptz)
+        *   `last_message_at` (timestamptz, nullable - useful for sorting chats)
+        *   `created_by` (uuid, nullable) // Nullable as these are predefined
+    *   **`province_chat_members` Table:** (Replaces `chat_members`, equivalent to old `group_members`)
+        *   `province_chat_id` (uuid, fk to `province_chats.id`, pk)
+        *   `user_id` (uuid, fk to `users.id`, pk)
+        *   `joined_at` (timestamptz)
+        *   `last_read_message_id` (uuid, fk to `province_messages.id`, nullable)
+    *   **`province_messages` Table:** (Replaces `messages`, equivalent to old `group_messages`)
+        *   `id` (uuid, pk)
+        *   `province_chat_id` (uuid, fk to `province_chats.id`)
+        *   `user_id` (uuid, fk to `users.id`)
+        *   `content` (text)
+        *   `image_url` (text, nullable - for future expansion)
+        *   `created_at` (timestamptz)
+
+3.  **Supabase Indexing:**
+    *   `regions`: Primary Key `id`.
+    *   `province_chats`: `(region_id)`, `(last_message_at DESC NULLS LAST)`.
+    *   `province_chat_members`: `(user_id, province_chat_id)` (covered by PK), `(user_id)`.
+    *   `province_messages`: `(province_chat_id, created_at DESC)` (Crucial composite index), `(user_id)`.
+
+4.  **Supabase RLS Policies (Initial Draft):**
+    *   **`regions`:**
+        *   `SELECT`: Allow authenticated users.
+    *   **`province_chats`:**
+        *   `SELECT`: Allow authenticated users.
+        *   `INSERT`/`UPDATE`/`DELETE`: Likely restrict all (predefined chats).
+    *   **`province_chat_members`:**
+        *   `SELECT`: Allow if `user_id = auth.uid()` OR if user is member of the *same* `province_chat_id`.
+        *   `INSERT`: Allow if `user_id = auth.uid()`. Consider an RPC for joining.
+        *   `DELETE`: Allow if `user_id = auth.uid()`. Consider an RPC for leaving.
+        *   `UPDATE` (for `last_read_message_id`): Allow if `user_id = auth.uid()`.
+    *   **`province_messages`:**
+        *   `SELECT`: Allow if user is a member of the `province_chat_id`.
+        *   `INSERT`: Allow if user is a member of the `province_chat_id` AND `user_id = auth.uid()`.
+        *   `DELETE`: Allow if `user_id = auth.uid()`. (Or implement soft delete/moderator roles).
+
+5.  **Supabase Realtime Configuration:**
+    *   Enable Realtime (replication) for `province_messages` and `province_chat_members` tables.
+
+**Phase 2: Backend Implementation (Supabase)**
+
+1.  **Populate Data:** Ensure `regions` and `province_chats` tables are populated with the correct Philippine regions and provinces.
+2.  **Apply Schema & RLS:** Use Supabase SQL editor or migrations to create/update tables (rename if needed), indexes, and apply RLS policies.
+3.  **(Optional) Database Functions/Triggers:**
+    *   Consider a trigger on `province_messages` insert to update `province_chats.last_message_at`.
+    *   Consider RPC functions (`join_province_chat`, `leave_province_chat`) to handle membership changes cleanly.
+
+**Phase 3: Frontend Implementation (React Native)**
+
+1.  **New Service Layer (`src/services/provinceChatService.ts` or similar):**
+    *   Create functions for all interactions with the new Supabase schema:
+        *   `getRegions`
+        *   `getProvinceChatsByRegion`
+        *   `joinProvinceChat`, `leaveProvinceChat`
+        *   `getUserProvinceChats` (fetch chats user is a member of)
+        *   `getProvinceMessages` (implementing cursor-based pagination using `created_at`)
+        *   `sendProvinceMessage` (handling text, preparing for optional images)
+        *   `deleteProvinceMessage`
+        *   `markProvinceMessagesAsRead` (updates `province_chat_members.last_read_message_id`)
+        *   Realtime subscription setup (`subscribeToNewProvinceMessages`, `subscribeToMembershipUpdates`) using Supabase JS client.
+    *   Implement clear error handling and type definitions.
+
+2.  **New/Updated UI Components:**
+    *   `RegionListScreen / ProvinceListScreen`: Browse regions and then provinces within a region.
+    *   `ProvinceChatListScreen`: (Maybe combined with above or separate tab) Displays province chats the user *is a member of*, sorted by `last_message_at`. Shows unread indicators.
+    *   `ProvinceChatRoomScreen`:
+        *   Displays messages fetched via `getProvinceMessages`.
+        *   Handles infinite scroll/load-older messages using cursor pagination.
+        *   Realtime updates for new messages.
+        *   Message input component (`sendProvinceMessage`).
+        *   Displays message bubbles (sent/received styling).
+        *   Calls `markProvinceMessagesAsRead` when appropriate.
+
+3.  **Navigation:** Update navigation to support browsing regions/provinces and accessing joined chats.
+
+4.  **Authentication Flow:** Ensure all chat service calls and screen access respect the user's authentication status from `useAuth`.
+
+**Phase 4: Advanced Features & Refinements (Post-V1)**
+
+(Keep existing items like Typing Indicators, Read Receipts, Attachments, Notifications, etc., adapting them to the province chat context)
+
+**Migration/Cleanup:**
+
+*   Once the new system is stable, plan the removal of the old chat system's code (`src/services/chat.ts`, `ChatScreen`, `ChatRoomScreen`) and Supabase objects (tables: `group_chats`, `group_messages`, `group_members`, etc., related RLS policies, indexes). 
