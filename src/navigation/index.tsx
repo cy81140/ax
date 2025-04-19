@@ -1,307 +1,220 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createMaterialBottomTabNavigator } from '@react-navigation/material-bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useAuth } from '../contexts/AuthContext';
+import { DefaultTheme } from '@react-navigation/native';
+import { useTheme } from 'react-native-paper';
+
+// Import the navigation types
 import { 
   RootStackParamList, 
   AuthStackParamList, 
-  MainTabParamList, 
-  ChatStackParamList,
-  ProfileStackParamList,
-  HomeStackParamList,
-  ProvinceChatStackParamList,
-  AdminStackParamList
+  MainStackParamList, 
+  MainTabParamList 
 } from './types';
-import { useAuth } from '../contexts/AuthContext';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useTheme } from '../context/ThemeContext';
-import ThemedAppbar from '../components/ThemedAppbar';
 
-// Import screens using barrel exports
-import { LoginScreen, RegisterScreen } from '../screens/auth';
-import {
-  HomeScreen,
-  CreateScreen,
-  SearchScreen,
-  ProfileScreen,
-  ActivityFeedScreen,
-  PostDetailsScreen,
-  NotificationsScreen,
-  EditProfileScreen,
-  RegionListScreen,
-  ProvinceListScreen,
-  ProvinceChatListScreen,
-  ProvinceChatRoomScreen,
-  FeedScreen,
-  AdminPanelScreen,
-  ReportsScreen
-} from '../screens/main';
-
-// Import settings screens
-import SettingsScreen from '../screens/settings/SettingsScreen';
+// Screens
+import { LoginScreen } from '../screens/auth/LoginScreen';
+import RegisterScreen from '../screens/auth/RegisterScreen';
+import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
+import RegionListScreen from '../screens/main/RegionListScreen';
+import ProvinceListScreen from '../screens/main/ProvinceListScreen';
+import ProvinceChatRoomScreen from '../screens/main/ProvinceChatRoomScreen';
+import ProfileScreen from '../screens/main/ProfileScreen';
+import ProvinceChatListScreen from '../screens/main/ProvinceChatListScreen';
+import CreateScreen from '../screens/main/CreateScreen';
+import FeedScreen from '../screens/main/FeedScreen';
+import ActivityScreen from '../screens/main/ActivityScreen';
+import EditProfileScreen from '../screens/main/EditProfileScreen';
+import PostDetailsScreen from '../screens/main/PostDetailsScreen';
+import TermsScreen from '../screens/settings/TermsScreen';
+import PrivacyPolicyScreen from '../screens/settings/PrivacyPolicyScreen';
 import MutedUsersScreen from '../screens/settings/MutedUsersScreen';
+import SettingsScreen from '../screens/settings/SettingsScreen';
 
-const RootStack = createNativeStackNavigator<RootStackParamList>();
-const AuthStack = createNativeStackNavigator<AuthStackParamList>();
-const MainTab = createMaterialBottomTabNavigator<MainTabParamList>();
-const ChatStack = createNativeStackNavigator<ChatStackParamList>();
-const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
-const HomeStack = createNativeStackNavigator<HomeStackParamList>();
-const ProvinceChatStack = createNativeStackNavigator<ProvinceChatStackParamList>();
-const AdminStack = createNativeStackNavigator<AdminStackParamList>();
-
-/**
- * Authentication Navigator
- * Handles login, registration, and password reset flows
- */
-const AuthNavigator = () => {
-  return (
-    <AuthStack.Navigator screenOptions={{ headerShown: false }}>
-      <AuthStack.Screen name="Login" component={LoginScreen} />
-      <AuthStack.Screen name="Register" component={RegisterScreen as React.ComponentType<any>} />
-    </AuthStack.Navigator>
-  );
+// Placeholder for Loading Screen if needed
+import { View, ActivityIndicator } from 'react-native';
+const LoadingScreen = () => {
+    const theme = useTheme();
+    return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background }}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+    );
 };
 
-/**
- * Home Stack Navigator
- * Handles main feed and post details
- */
-const HomeNavigator = () => {
-  return (
-    <HomeStack.Navigator initialRouteName="Feed">
-      <HomeStack.Screen 
-        name="Feed" 
-        component={HomeScreen} 
-        options={{ headerShown: false }}
-      />
-      <HomeStack.Screen 
-        name="PostDetails" 
-        component={PostDetailsScreen} 
-        options={{
-          title: "Post",
-          headerShown: true,
-          header: (props) => <ThemedAppbar {...props} />,
-        }}
-      />
-    </HomeStack.Navigator>
-  );
-};
+const RootStack = createStackNavigator<RootStackParamList>();
+const AuthNavStack = createStackNavigator<AuthStackParamList>();
+const MainNavStack = createStackNavigator<MainStackParamList>();
+const Tab = createBottomTabNavigator<MainTabParamList>();
 
-/**
- * Chat Navigator (Using NEW Province System)
- * Handles browsing regions/provinces and province chat rooms
- */
-const ChatNavigator = () => {
-  return (
-    <ProvinceChatStack.Navigator initialRouteName="RegionList">
-      <ProvinceChatStack.Screen 
-        name="RegionList" 
-        component={RegionListScreen}
-        options={{ title: 'Regions' }}
-      />
-      <ProvinceChatStack.Screen 
-        name="ProvinceList" 
-        component={ProvinceListScreen}
-        options={({ route }) => ({ 
-          title: (route.params as { regionName?: string })?.regionName || 'Provinces', 
-        })}
-      />
-      <ProvinceChatStack.Screen 
-        name="MyProvinceChats"
-        component={ProvinceChatListScreen}
-        options={{ title: 'My Chats' }}
-      />
-      <ProvinceChatStack.Screen 
-        name="ProvinceChatRoom"
-        component={ProvinceChatRoomScreen}
-        options={({ route }) => ({ 
-          title: (route.params as { provinceName?: string })?.provinceName || 'Chat',
-          headerBackTitle: 'Back',
-        })}
-      />
-    </ProvinceChatStack.Navigator>
-  );
-};
-
-/**
- * Profile Navigator
- * Handles user profile, settings, and related screens
- */
-const ProfileNavigator = () => {
-  return (
-    <ProfileStack.Navigator>
-      <ProfileStack.Screen 
-        name="Profile" 
-        component={ProfileScreen} 
-        options={{ headerShown: false }}
-      />
-      <ProfileStack.Screen
-        name="EditProfile"
-        component={EditProfileScreen}
-        options={{
-          title: 'Edit Profile',
-          headerBackTitle: 'Back',
-        }}
-      />
-      <ProfileStack.Screen 
-        name="Settings" 
-        component={SettingsScreen}
-        options={{ 
-          title: 'Settings',
-          headerBackTitle: 'Back',
-        }}
-      />
-      <ProfileStack.Screen 
-        name="MutedUsers" 
-        component={MutedUsersScreen}
-        options={{ 
-          title: 'Muted Users',
-          headerBackTitle: 'Back',
-        }}
-      />
-    </ProfileStack.Navigator>
-  );
-};
-
-/**
- * Admin Navigator (Placeholder)
- * Handles admin-specific screens like reports and moderation
- */
-const AdminNavigator = () => {
-  return (
-    <AdminStack.Navigator initialRouteName="AdminPanel">
-      <AdminStack.Screen 
-        name="AdminPanel" 
-        component={AdminPanelScreen}
-        options={{ title: 'Admin Panel' }}
-      />
-      <AdminStack.Screen 
-        name="Reports" 
-        component={ReportsScreen}
-        options={{ title: 'Reports' }}
-      />
-    </AdminStack.Navigator>
-  );
-};
-
-/**
- * Main Tab Navigator (Using Material Bottom Tabs)
- */
+// --- Main Bottom Tab Navigator ---
 const MainNavigator = () => {
-  const { theme } = useTheme();
-  
+  const theme = useTheme();
   return (
-    <MainTab.Navigator
-      initialRouteName="Home"
-      activeColor={theme.colors.primary}
-      inactiveColor={theme.colors.onSurfaceVariant}
-      barStyle={{ backgroundColor: theme.colors.elevation.level2 }}
-      screenOptions={{
-      }}
+    <Tab.Navigator
+      initialRouteName="Home" 
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: React.ComponentProps<typeof MaterialCommunityIcons>['name'] = 'help-circle'; 
+
+          if (route.name === 'Home') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'Chats') {
+            iconName = focused ? 'map' : 'map-outline';
+          } else if (route.name === 'ProfileTab') {
+            iconName = focused ? 'account-circle' : 'account-circle-outline';
+          } else if (route.name === 'Create') {
+            iconName = focused ? 'plus-circle' : 'plus-circle-outline';
+          } else if (route.name === 'Activity') {
+            iconName = focused ? 'bell' : 'bell-outline';
+          }
+
+          // Return icon with updated styling
+          return <MaterialCommunityIcons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: theme.colors.primary, 
+        tabBarInactiveTintColor: theme.colors.onSurfaceVariant,
+        tabBarStyle: { 
+            backgroundColor: theme.colors.elevation.level2, 
+            borderTopWidth: 0,
+            elevation: 0,
+            height: 60,
+            paddingTop: 8,
+            paddingBottom: 10,
+        },
+        headerStyle: { 
+            backgroundColor: theme.colors.elevation.level2,
+            shadowColor: 'transparent' 
+        },
+        headerTintColor: theme.colors.onSurface,
+        tabBarLabelStyle: {
+            fontSize: 12,
+            fontWeight: '500',
+        },
+      })}
     >
-      <MainTab.Screen 
-        name="Home" 
-        component={HomeNavigator} 
-        options={{
-          tabBarLabel: 'Home',
-          tabBarIcon: ({ color, focused }: { color: string, focused: boolean }) => (
-            <MaterialCommunityIcons name={focused ? "home" : "home-outline"} color={color} size={24} />
-          ),
-        }}
+      <Tab.Screen 
+          name="Home" 
+          component={FeedScreen} 
+          options={{ title: 'Home' }} 
       />
-      <MainTab.Screen 
-        name="Chat" 
-        component={ChatNavigator} 
-        options={{
-          tabBarLabel: 'Chat',
-          tabBarIcon: ({ color, focused }: { color: string, focused: boolean }) => (
-            <MaterialCommunityIcons name={focused ? "chat" : "chat-outline"} color={color} size={24} />
-          ),
-        }}
+      <Tab.Screen 
+          name="Create" 
+          component={CreateScreen} 
+          options={{ title: 'Create' }} 
       />
-      <MainTab.Screen 
-        name="Create" 
-        component={CreateScreen} 
-        options={{
-          tabBarLabel: 'Create',
-          tabBarIcon: ({ color, focused }: { color: string, focused: boolean }) => (
-            <MaterialCommunityIcons name={focused ? "plus-circle" : "plus-circle-outline"} color={color} size={24} />
-          ),
-        }}
+      <Tab.Screen 
+          name="Chats" 
+          component={RegionListScreen} 
+          options={{ title: 'Regions' }} 
       />
-      <MainTab.Screen 
-        name="Search" 
-        component={SearchScreen} 
-        options={{
-          tabBarLabel: 'Search',
-          tabBarIcon: ({ color, focused }: { color: string, focused: boolean }) => (
-            <MaterialCommunityIcons name="magnify" color={color} size={24} />
-          ),
-        }}
+      <Tab.Screen 
+          name="Activity" 
+          component={ActivityScreen} 
+          options={{ title: 'Activity' }} 
       />
-      <MainTab.Screen 
-        name="Activity" 
-        component={NotificationsScreen as React.ComponentType<any>} 
-        options={{
-          tabBarLabel: 'Activity',
-          tabBarIcon: ({ color, focused }: { color: string, focused: boolean }) => (
-            <MaterialCommunityIcons name={focused ? "bell" : "bell-outline"} color={color} size={24} />
-          ),
-        }}
+      <Tab.Screen 
+          name="ProfileTab" 
+          component={ProfileScreen} 
+          options={{ title: 'Profile' }} 
       />
-      <MainTab.Screen 
-        name="ProfileTab" 
-        component={ProfileNavigator} 
-        options={{
-          tabBarLabel: 'Profile',
-          tabBarIcon: ({ color, focused }: { color: string, focused: boolean }) => (
-            <MaterialCommunityIcons name={focused ? "account" : "account-outline"} color={color} size={24} />
-          ),
-        }}
-      />
-    </MainTab.Navigator>
+    </Tab.Navigator>
   );
 };
 
-/**
- * Root Navigation Component
- * The main navigation container that handles auth state and theme
- */
-export const Navigation = () => {
-  const { user, session, loading } = useAuth();
-  const { theme } = useTheme();
+// --- Root App Navigator (Handles Auth vs Main) ---
+const AppNavigator = () => {
+  const { user, loading } = useAuth();
+  const theme = useTheme();
 
-  const isAdmin = (user as any)?.is_admin === true;
+  // Create a navigation theme based on the Paper theme
+  const navTheme = {
+    ...DefaultTheme,
+    colors: {
+      ...DefaultTheme.colors,
+      primary: theme.colors.primary,
+      background: theme.colors.background,
+      card: theme.colors.surface,
+      text: theme.colors.onSurface,
+      border: theme.colors.outline,
+      notification: theme.colors.error,
+    },
+  };
 
   if (loading) {
-    return null;
+    return <LoadingScreen />;
   }
 
   return (
-    <NavigationContainer theme={{
-      dark: theme.dark,
-      colors: {
-        primary: theme.colors.primary,
-        background: theme.colors.background,
-        card: theme.colors.surface,
-        text: theme.colors.text,
-        border: theme.colors.surfaceVariant,
-        notification: theme.colors.error,
-      }
-    }}>
+    <NavigationContainer theme={navTheme}> 
       <RootStack.Navigator screenOptions={{ headerShown: false }}>
-        {user && session ? (
-          <>
-            <RootStack.Screen name="Main" component={MainNavigator} />
-            {isAdmin && (
-              <RootStack.Screen name="Admin" component={AdminNavigator} />
-            )}
-          </>
+        {user ? (
+          <RootStack.Screen name="Main" component={MainStack} />
         ) : (
-          <RootStack.Screen name="Auth" component={AuthNavigator} />
+          <RootStack.Screen name="Auth" component={AuthStack} />
         )}
       </RootStack.Navigator>
     </NavigationContainer>
   );
-}; 
+};
+
+// --- Auth Stack ---
+const AuthStack = () => {
+  const theme = useTheme();
+  return (
+    <AuthNavStack.Navigator 
+      initialRouteName="Login"
+      screenOptions={{
+          headerStyle: { backgroundColor: theme.colors.elevation.level2 },
+          headerTintColor: theme.colors.onSurface,
+          cardStyle: { backgroundColor: theme.colors.background }, 
+      }}
+    >
+      <AuthNavStack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+      <AuthNavStack.Screen name="Register" component={RegisterScreen} options={{ title: 'Create Account' }} />
+      <AuthNavStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: 'Reset Password' }} />
+      <AuthNavStack.Screen name="TermsOfService" component={TermsScreen} options={{ title: 'Terms of Service' }} />
+      <AuthNavStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{ title: 'Privacy Policy' }} />
+    </AuthNavStack.Navigator>
+  );
+};
+
+// --- Main Stack (Includes Tabs and other screens) ---
+const MainStack = () => {
+  const theme = useTheme();
+  
+  return (
+    <MainNavStack.Navigator
+      initialRouteName="MainTabs"
+      screenOptions={{
+          headerStyle: { backgroundColor: theme.colors.elevation.level2 },
+          headerTintColor: theme.colors.onSurface,
+          cardStyle: { backgroundColor: theme.colors.background }, 
+      }}
+    >
+      <MainNavStack.Screen name="MainTabs" component={MainNavigator} options={{ headerShown: false }} />
+      <MainNavStack.Screen 
+          name="ProvinceList" 
+          component={ProvinceListScreen} 
+          options={({ route }) => ({ 
+            title: route.params.regionName || 'Provinces' 
+          })} 
+      />
+      <MainNavStack.Screen name="ProvinceChatRoom" component={ProvinceChatRoomScreen} options={{ headerShown: false }} />
+      <MainNavStack.Screen name="Profile" component={ProfileScreen} />
+      <MainNavStack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Edit Profile' }} />
+      <MainNavStack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings', headerShown: false }} />
+      <MainNavStack.Screen name="MutedUsers" component={MutedUsersScreen} options={{ title: 'Muted Users' }} />
+      <MainNavStack.Screen name="Reports" component={TermsScreen} options={{ title: 'Reports' }} />
+      <MainNavStack.Screen name="AdminPanel" component={AdminPanelScreen} options={{ title: 'Admin Panel' }} />
+      <MainNavStack.Screen name="PostDetails" component={PostDetailsScreen} options={{ title: 'Post Details' }} />
+      <MainNavStack.Screen name="TermsOfService" component={TermsScreen} options={{ title: 'Terms of Service' }} />
+      <MainNavStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{ title: 'Privacy Policy' }} />
+    </MainNavStack.Navigator>
+  );
+};
+
+export default AppNavigator;

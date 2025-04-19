@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, FlatList } from 'react-native';
 import { Text, Card, ActivityIndicator, useTheme, Avatar } from 'react-native-paper';
-import { getUserActivity, Activity } from '../../services/activity';
+import { getUserActivity, Activity, getActivityDescription } from '../../services/activity';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatDistanceToNow } from 'date-fns';
 
 export const ActivityFeedScreen = () => {
   const theme = useTheme();
@@ -32,33 +33,36 @@ export const ActivityFeedScreen = () => {
     }
   };
 
-  const renderActivity = ({ item }: { item: Activity }) => {
-    let content = '';
-    let icon = '';
-
-    const actorName = item.user?.username || 'Someone';
-
-    switch (item.action_type) {
-      case 'post':
-        content = `${actorName} created a new post.`;
-        icon = 'file-document-outline';
-        break;
-      case 'comment':
-        content = `${actorName} commented.`;
-        icon = 'comment-processing-outline';
-        break;
+  const getActivityIcon = (actionType: string) => {
+    switch (actionType) {
+      case 'new_post':
+        return 'file-document-outline';
+      case 'new_comment':
+        return 'comment-processing-outline';
       case 'like':
-        content = `${actorName} liked something.`;
-        icon = 'heart-outline';
-        break;
+        return 'heart-outline';
       case 'follow':
-        content = `${actorName} started following someone.`;
-        icon = 'account-plus-outline';
-        break;
+        return 'account-plus-outline';
+      case 'mention':
+        return 'at';
+      case 'reply':
+        return 'reply';
+      case 'repost':
+        return 'repeat';
+      case 'create_poll':
+        return 'poll';
+      case 'vote_poll':
+        return 'vote';
       default:
-        content = `${actorName} performed an action.`;
-        icon = 'help-circle-outline';
+        return 'help-circle-outline';
     }
+  };
+
+  const renderActivity = ({ item }: { item: Activity }) => {
+    const icon = getActivityIcon(item.action_type);
+    const actorName = item.user?.username || 'Someone';
+    const content = getActivityDescription(item.action_type, actorName);
+    const timeAgo = formatDistanceToNow(new Date(item.created_at), { addSuffix: true });
 
     return (
       <Card style={styles.card}>
@@ -70,9 +74,7 @@ export const ActivityFeedScreen = () => {
           )}
           <View style={styles.textContainer}>
             <Text style={styles.content}>{content}</Text>
-            <Text style={styles.timestamp}>
-              {new Date(item.created_at).toLocaleString()}
-            </Text>
+            <Text style={styles.timestamp}>{timeAgo}</Text>
           </View>
         </Card.Content>
       </Card>
@@ -82,7 +84,7 @@ export const ActivityFeedScreen = () => {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
@@ -108,38 +110,38 @@ export const ActivityFeedScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  card: {
-    marginVertical: 4,
-    marginHorizontal: 8,
-  },
-  cardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   avatar: {
     marginRight: 12,
   },
-  textContainer: {
+  card: {
+    marginHorizontal: 8,
+    marginVertical: 4,
+  },
+  cardContent: {
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  center: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 20,
+  },
+  container: {
     flex: 1,
   },
   content: {
     fontSize: 15,
   },
-  timestamp: {
-    fontSize: 12,
-    color: 'grey',
-    marginTop: 4,
-  },
   error: {
     fontSize: 16,
+  },
+  textContainer: {
+    flex: 1,
+  },
+  timestamp: {
+    color: 'grey',
+    fontSize: 12,
+    marginTop: 4,
   },
 }); 

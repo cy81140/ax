@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
-import { createPoll as createPollService } from './polls';
 import { AminoError, ErrorTypes } from '../utils/errors';
 import { Post, Comment, User, Poll, PollOption, PollVote } from '../types/services';
+import { Platform } from 'react-native';
 
 // Add a properly typed StorageError interface for Supabase storage errors
 interface StorageError {
@@ -12,9 +12,9 @@ interface StorageError {
 // Posts
 export const createPost = async (post: Omit<Post, 'id' | 'created_at'>): Promise<Post> => {
   try {
-    // Check if supabase auth is available
-    const currentUser = supabase.auth.getUser();
-    if (!currentUser) {
+    // Correctly await the user
+    const { data: user, error: userError } = await supabase.auth.getUser();
+    if (userError || !user || !user.user?.id) {
       throw new Error('User not authenticated');
     }
 
@@ -24,6 +24,7 @@ export const createPost = async (post: Omit<Post, 'id' | 'created_at'>): Promise
         user_id: post.user_id,
         content: post.content,
         image_url: post.image_url,
+        video_url: post.video_url,
         likes_count: 0,
         comments_count: 0,
       })
@@ -47,7 +48,7 @@ export const getPosts = async (limit = 10, offset = 0) => {
       .from('posts')
       .select(`
         *,
-        users:user_id (username, profile_picture),
+        users:user_id!posts_user_id_fkey (username, profile_picture),
         comments:comments (count),
         polls:polls (*)
       `)
@@ -65,7 +66,7 @@ export const getPost = async (postId: string): Promise<Post> => {
   try {
     const { data, error } = await supabase
       .from('posts')
-      .select('*, user:users(*)')
+      .select('*, user:users!posts_user_id_fkey(*)')
       .eq('id', postId)
       .single();
 
@@ -104,7 +105,7 @@ export const getCommentsByPostId = async (postId: string) => {
       .from('comments')
       .select(`
         *,
-        users:user_id (username, profile_picture)
+        users:user_id!comments_user_id_fkey (username, profile_picture)
       `)
       .eq('post_id', postId)
       .order('created_at', { ascending: true });
@@ -244,10 +245,13 @@ export const likePost = async (postId: string, userId: string) => {
       })
       .select();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error liking post:', error);
+      throw error;
+    }
     return data;
   } catch (error) {
-    console.error('Error liking post:', error);
+    console.error('Exception in likePost:', error);
     throw error;
   }
 };
@@ -266,10 +270,13 @@ export const unlikePost = async (postId: string, userId: string) => {
       .eq('user_id', userId)
       .select();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error unliking post:', error);
+      throw error;
+    }
     return data;
   } catch (error) {
-    console.error('Error unliking post:', error);
+    console.error('Exception in unlikePost:', error);
     throw error;
   }
 };
@@ -303,38 +310,83 @@ export const uploadProfileImage = async (userId: string, filePath: string, file:
 
     console.log('Uploading profile image with path:', securePath);
 
-    // Now upload the file. Supabase client handles auth implicitly.
-    const { data, error } = await supabase.storage
-      .from('profiles')
-      .upload(securePath, file, {
-        cacheControl: '3600',
-        upsert: true
-      });
+    // For Android, we need to create FormData differently
+    if (Platform.OS === 'android') {
+      const fileType = filePath.split('.').pop() || 'jpg';
+      const formData = new FormData();
+      formData.append('file', {
+        uri: filePath,
+        type: `image/${fileType}`,
+        name: filePath.split('/').pop() || 'profile.jpg',
+      } as any);
 
-    if (error) {
-      console.error('Storage RLS Error during profile image upload:', error);
-      
-      // Fallback to placeholder avatar ONLY on storage error
-      const username = 'user'; // Cannot determine username here safely
-      const encodedUsername = encodeURIComponent(username);
-      const placeholderUrl = `https://ui-avatars.com/api/?name=${encodedUsername}&background=random&size=200`;
-      
-      console.log('Using placeholder avatar due to storage errors:', placeholderUrl);
-      
-      // Return an object indicating fallback
-      return {
-        error: { message: error.message, fallback: true, publicUrl: placeholderUrl },
-        publicUrl: null,
-        path: null
-      };
+      // Now upload the file. Supabase client handles auth implicitly.
+      const { data, error } = await supabase.storage
+        .from('profiles')
+        .upload(securePath, formData, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (error) {
+        console.error('Storage RLS Error during profile image upload:', error);
+        
+        // Fallback to placeholder avatar ONLY on storage error
+        const username = 'user'; // Cannot determine username here safely
+        const encodedUsername = encodeURIComponent(username);
+        const placeholderUrl = `https://ui-avatars.com/api/?name=${encodedUsername}&background=random&size=200`;
+        
+        console.log('Using placeholder avatar due to storage errors:', placeholderUrl);
+        
+        // Return an object indicating fallback
+        return {
+          error: { message: error.message, fallback: true, publicUrl: placeholderUrl },
+          publicUrl: null,
+          path: null
+        };
+      }
+
+      // Get the public URL
+      const { data: publicUrlData } = supabase.storage
+        .from('profiles')
+        .getPublicUrl(securePath);
+
+      return { publicUrl: publicUrlData.publicUrl, path: data?.path, error: null };
+    } else {
+      // iOS and Web - original implementation
+      // Now upload the file. Supabase client handles auth implicitly.
+      const { data, error } = await supabase.storage
+        .from('profiles')
+        .upload(securePath, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (error) {
+        console.error('Storage RLS Error during profile image upload:', error);
+        
+        // Fallback to placeholder avatar ONLY on storage error
+        const username = 'user'; // Cannot determine username here safely
+        const encodedUsername = encodeURIComponent(username);
+        const placeholderUrl = `https://ui-avatars.com/api/?name=${encodedUsername}&background=random&size=200`;
+        
+        console.log('Using placeholder avatar due to storage errors:', placeholderUrl);
+        
+        // Return an object indicating fallback
+        return {
+          error: { message: error.message, fallback: true, publicUrl: placeholderUrl },
+          publicUrl: null,
+          path: null
+        };
+      }
+
+      // Get the public URL
+      const { data: publicUrlData } = supabase.storage
+        .from('profiles')
+        .getPublicUrl(securePath);
+
+      return { publicUrl: publicUrlData.publicUrl, path: data?.path, error: null };
     }
-
-    // Get the public URL
-    const { data: publicUrlData } = supabase.storage
-      .from('profiles')
-      .getPublicUrl(securePath);
-
-    return { publicUrl: publicUrlData.publicUrl, path: data?.path, error: null };
   } catch (error: unknown) {
     console.error('Exception during profile image upload:', error);
     // Generic fallback for any other exception
@@ -346,13 +398,97 @@ export const uploadProfileImage = async (userId: string, filePath: string, file:
     
     return {
         error: { 
-            message: error instanceof Error ? error.message : 'Unknown upload error', 
+            message: error instanceof Error ? error.message : 'Network request failed', 
             fallback: true, 
             publicUrl: placeholderUrl 
         },
         publicUrl: null,
         path: null
     };
+  }
+};
+
+// Comment Likes
+export const likeComment = async (commentId: string, userId: string) => {
+  if (!commentId || !userId) {
+    throw new AminoError('Comment ID and User ID are required', ErrorTypes.VALIDATION_ERROR, 400);
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('comment_likes')
+      .insert({
+        comment_id: commentId,
+        user_id: userId,
+      })
+      .select();
+
+    if (error) {
+      console.error('Error liking comment:', error);
+      throw error;
+    }
+    return data;
+  } catch (error) {
+    console.error('Exception in likeComment:', error);
+    throw error;
+  }
+};
+
+// Unlike a comment
+export const unlikeComment = async (commentId: string, userId: string) => {
+  if (!commentId || !userId) {
+    throw new AminoError('Comment ID and User ID are required', ErrorTypes.VALIDATION_ERROR, 400);
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('comment_likes')
+      .delete()
+      .eq('comment_id', commentId)
+      .eq('user_id', userId)
+      .select();
+
+    if (error) {
+      console.error('Error unliking comment:', error);
+      throw error;
+    }
+    return data;
+  } catch (error) {
+    console.error('Exception in unlikeComment:', error);
+    throw error;
+  }
+};
+
+// Check if comment is liked by user
+export const isCommentLiked = async (commentId: string, userId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('comment_likes')
+      .select()
+      .eq('comment_id', commentId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    return data && data.length > 0;
+  } catch (error) {
+    console.error('Error checking comment like status:', error);
+    throw error;
+  }
+};
+
+// Get comment like count
+export const getCommentLikeCount = async (commentId: string) => {
+  try {
+    const { count, error } = await supabase
+      .from('comment_likes')
+      .select('*', { count: 'exact' })
+      .eq('comment_id', commentId);
+
+    if (error) throw error;
+    return count || 0;
+  } catch (error) {
+    console.error('Error getting comment like count:', error);
+    throw error;
   }
 };
 
@@ -453,5 +589,21 @@ export const databaseService = {
 
     if (error) throw error;
     return data || [];
-  }
+  },
+
+  async likeComment(commentId: string, userId: string): Promise<any> {
+    return likeComment(commentId, userId);
+  },
+
+  async unlikeComment(commentId: string, userId: string): Promise<any> {
+    return unlikeComment(commentId, userId);
+  },
+
+  async isCommentLiked(commentId: string, userId: string): Promise<boolean> {
+    return isCommentLiked(commentId, userId);
+  },
+
+  async getCommentLikeCount(commentId: string): Promise<number> {
+    return getCommentLikeCount(commentId);
+  },
 }; 

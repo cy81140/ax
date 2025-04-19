@@ -43,8 +43,8 @@ export const PostActions: React.FC<PostActionsProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
     alignItems: 'center',
+    flexDirection: 'row',
     paddingHorizontal: 8,
   },
 }); 

@@ -3,7 +3,7 @@ import FeedScreen from './FeedScreen';
 import { SearchScreen } from './SearchScreen';
 import CreateScreen from './CreateScreen';
 import ProfileScreen from './ProfileScreen';
-import { PostDetailsScreen } from './PostDetailsScreen';
+import PostDetailsScreen from './PostDetailsScreen';
 import { EditProfileScreen } from './EditProfileScreen';
 import { ActivityFeedScreen } from './ActivityFeedScreen';
 import { NotificationsScreen } from './NotificationsScreen';

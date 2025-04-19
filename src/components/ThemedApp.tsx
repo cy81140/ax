@@ -36,7 +36,7 @@ interface ThemedAppProps {
  * ThemedApp provides theme context to the entire application
  */
 export function ThemedApp({ children }: ThemedAppProps) {
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(true);
 
   const toggleTheme = () => {
     setIsDark(prev => !prev);

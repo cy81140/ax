@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Platform, Image } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Platform, Image, TouchableOpacity } from 'react-native';
 import { Text, TextInput, Button, Chip, Portal, Dialog, IconButton, useTheme, Surface, Appbar, ActivityIndicator } from 'react-native-paper';
 import { useAuth } from '../../contexts/AuthContext';
-import { createPost, uploadImage, uploadVideo } from '../../services/database';
+import { postService } from '../../services/posts';
+import { uploadFile } from '../../services/upload';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { CreatePollForm } from '../../components/polls';
 import { AminoError, ErrorTypes } from '../../utils/errors';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { MainStackParamList, MainTabParamList } from '../../types/navigation';
-import { postService } from '../../services/post';
+import { MainStackParamList, MainTabParamList } from '../../navigation/types';
 import { User, Post } from '../../types/services';
 import { supabase } from '../../services/supabase';
+import Animated, { FadeIn, SlideInUp } from 'react-native-reanimated';
+import { NavigatorScreenParams } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
-type CreateScreenNavigationProp = NativeStackNavigationProp<MainTabParamList, 'Create'>;
+type CreateScreenNavigationProp = BottomTabNavigationProp<MainTabParamList, 'Create'>;
 
 type ContentType = 'text' | 'image' | 'video' | 'poll';
 
@@ -22,6 +25,23 @@ type ContentType = 'text' | 'image' | 'video' | 'poll';
 const getBlob = async (uri: string): Promise<Blob> => {
   const response = await fetch(uri);
   return await response.blob();
+};
+
+// Helper to convert Blob to a File-like object for uploadFile
+const blobToFile = (blob: Blob, fileName: string): File => {
+  // Create a File from the Blob
+  return new File([blob], fileName, { type: blob.type });
+};
+
+// Loading overlay component
+const LoadingOverlay = () => {
+  const theme = useTheme();
+  return (
+    <View style={styles.loadingOverlay}>
+      <ActivityIndicator size="large" color={theme.colors.primary} />
+      <Text style={styles.loadingText}>Creating post...</Text>
+    </View>
+  );
 };
 
 const CreateScreen = () => {
@@ -74,24 +94,43 @@ const CreateScreen = () => {
   };
 
   const handleMediaUpload = async (): Promise<string | undefined> => {
-    if (!user || !mediaUri) {
-      setError('Cannot upload media. User or media URI missing.');
-      return undefined;
-    }
+    if (!mediaUri || !mediaType) return undefined;
     setUploading(true);
-    setError(null);
+    
     try {
-      const filePath = `${user.id}/${Date.now()}`;
+      // Create a meaningful file name with timestamp to prevent collisions
+      const timestamp = Date.now();
+      const fileExt = mediaType === 'image' ? '.jpg' : '.mp4';
+      const fileName = `post_${timestamp}${fileExt}`;
+      const filePath = `posts/${fileName}`;
+      
+      // Convert URI to blob
       const blob = await getBlob(mediaUri);
-      let result;
-      if (mediaType === 'image') {
-        result = await uploadImage(filePath, blob);
-      } else if (mediaType === 'video') {
-        result = await uploadVideo(filePath, blob);
-      } else {
-          throw new Error("Invalid media type for upload");
+      
+      try {
+        // Convert blob to File-like object
+        const fileObject = blobToFile(blob, fileName);
+        
+        // Use uploadFile from the upload service
+        const { data: uploadData, error: uploadError } = await uploadFile(
+          fileObject, 
+          'posts', 
+          '', // Use empty path as the filename already contains the path
+          fileName
+        );
+        
+        if (uploadError) throw uploadError;
+        
+        // Get the full URL of the uploaded file
+        const { data: publicUrlData } = supabase.storage
+          .from('posts')
+          .getPublicUrl(uploadData.path);
+          
+        return publicUrlData.publicUrl;
+      } catch (error) {
+        console.error('Error in media upload:', error);
+        throw error;
       }
-      return result.publicUrl;
     } catch (error) {
       console.error('Error uploading media:', error);
       setError('Failed to upload media. Please try again.');
@@ -132,23 +171,19 @@ const CreateScreen = () => {
         }
       }
 
-      const postPayload = {
-        user_id: user.id,
+      // Create correct payload for postService.createPost
+      const createPostParams = {
+        userId: user.id,
         content: postContent.trim(),
-        image_url: contentType === 'image' ? uploadedMediaUrl : undefined,
-        video_url: contentType === 'video' ? uploadedMediaUrl : undefined,
-        likes_count: 0,
-        comments_count: 0,
+        mediaUrls: uploadedMediaUrl ? [uploadedMediaUrl] : [],
+        mentions: [],
+        provinces: []
       };
 
       console.log('Creating post with user_id:', user.id);
-      const response = await createPost(postPayload);
-      const postData = 'data' in response ? response.data : response;
-      const postError = 'error' in response ? response.error : null;
+      const { data: createdPost, error: postError } = await postService.createPost(createPostParams);
 
       if (postError) throw postError;
-
-      const createdPost = Array.isArray(postData) ? postData[0] : postData;
 
       if (!createdPost || !createdPost.id) {
           throw new Error("Post creation response did not contain valid data.");
@@ -163,7 +198,7 @@ const CreateScreen = () => {
 
       resetForm();
       Alert.alert('Success', 'Post created successfully');
-      navigation.navigate('Home' as any);
+      navigation.navigate('Home');
 
     } catch (error: any) {
       console.error("Error creating post:", error);
@@ -190,12 +225,23 @@ const CreateScreen = () => {
   const handlePollCreated = () => {
     resetForm();
     Alert.alert('Success', 'Poll created successfully');
-    navigation.navigate('Home' as any);
+    navigation.navigate('Home');
   };
 
   const handleCancelPoll = () => {
     setShowPollForm(false);
     resetForm();
+  };
+
+  const handleCancel = () => {
+    // Clear form data
+    setPostContent('');
+    setMediaUri(undefined);
+    setMediaType(null);
+    setContentType('text');
+    
+    // Correctly navigate to the nested Home screen within the Main tab navigator
+    navigation.navigate('Home'); // Assuming CreateScreen is part of MainTabNavigator
   };
 
   if (showPollForm && createdPostId) {
@@ -209,148 +255,244 @@ const CreateScreen = () => {
   }
 
   return (
-    <Surface style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <Appbar.Header>
-        <Appbar.Content title="Create Post" />
-        <Appbar.Action
-          icon="send"
-          onPress={handleCreatePost}
-          disabled={loading || uploading || (!postContent.trim() && contentType === 'text')}
-        />
-      </Appbar.Header>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <TextInput
-          mode="outlined"
-          label="What's on your mind?"
-          value={postContent}
-          onChangeText={setPostContent}
-          multiline
-          numberOfLines={4}
-          style={styles.textInput}
-          maxLength={500}
-        />
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <Animated.View entering={FadeIn.duration(300)}>
+        <Surface style={styles.headerSurface} elevation={1}>
+          <Text style={styles.headerTitle}>Create Post</Text>
+          <TouchableOpacity 
+            style={styles.cancelButton} 
+            onPress={handleCancel}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+        </Surface>
+      </Animated.View>
+
+      <ScrollView style={styles.content}>
+        <Animated.View entering={SlideInUp.delay(100).duration(400)}>
+          <Surface style={styles.inputSurface} elevation={1}>
+            <TextInput
+              style={styles.textInput}
+              placeholder="What's on your mind?"
+              placeholderTextColor={theme.colors.onSurfaceVariant}
+              multiline
+              autoFocus
+              value={postContent}
+              onChangeText={setPostContent}
+            />
+          </Surface>
+        </Animated.View>
 
         {mediaUri && (
-          <View style={styles.mediaPreviewContainer}>
-            <Image source={{ uri: mediaUri }} style={styles.mediaPreview} resizeMode="cover" />
-            <IconButton
-              icon="close-circle"
-              style={styles.removeMediaButton}
-              size={24}
-              iconColor={theme.colors.error}
-              onPress={() => {
-                setMediaUri(undefined);
-                setMediaType(null);
-                setContentType('text');
-              }}
-            />
-          </View>
+          <Animated.View entering={FadeIn.delay(200).duration(300)}>
+            <Surface style={styles.mediaSurface} elevation={2}>
+              <View style={styles.mediaPreviewContainer}>
+                <Image source={{ uri: mediaUri }} style={styles.mediaPreview} resizeMode="cover" />
+                <IconButton
+                  icon="close-circle"
+                  size={24}
+                  style={styles.removeMediaButton}
+                  onPress={() => {
+                    setMediaUri(undefined);
+                    setMediaType(null);
+                    setContentType('text');
+                  }}
+                  iconColor="#fff"
+                />
+              </View>
+            </Surface>
+          </Animated.View>
         )}
 
-        <View style={styles.chipContainer}>
-          <Chip
-            icon="image"
-            selected={contentType === 'image'}
-            onPress={() => pickImage(false)}
-            disabled={uploading}
-            style={styles.chip}
-          >
-            Image
-          </Chip>
-          <Chip
-            icon="video"
-            selected={contentType === 'video'}
-            onPress={() => pickImage(true)}
-            disabled={uploading}
-            style={styles.chip}
-          >
-            Video
-          </Chip>
-          <Chip
-            icon="poll"
-            selected={contentType === 'poll'}
-            onPress={() => setContentType('poll')}
-            disabled={uploading}
-            style={styles.chip}
-          >
-            Poll
-          </Chip>
-        </View>
-
-        {uploading && (
-          <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color={theme.colors.primary} />
-            <Text style={styles.loadingText}>Uploading...</Text>
-          </View>
-        )}
-
-        {loading && !uploading && (
-            <View style={styles.loadingOverlay}>
-                <ActivityIndicator size="large" color={theme.colors.primary} />
-                <Text style={styles.loadingText}>Creating Post...</Text>
+        <Animated.View entering={SlideInUp.delay(200).duration(400)}>
+          <Surface style={styles.optionsSurface} elevation={1}>
+            <Text style={styles.optionsTitle}>Add to your post</Text>
+            <View style={styles.optionsRow}>
+              <TouchableOpacity
+                style={[styles.optionButton, { backgroundColor: theme.colors.primary + '20' }]}
+                onPress={() => pickImage(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Add photo"
+                accessibilityHint="Select a photo from your gallery"
+              >
+                <MaterialCommunityIcons name="image-outline" size={24} color={theme.colors.primary} />
+                <Text style={[styles.optionText, { color: theme.colors.primary }]}>Photo</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.optionButton, { backgroundColor: theme.colors.error + '20' }]}
+                onPress={() => pickImage(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Add video"
+                accessibilityHint="Select a video from your gallery"
+              >
+                <MaterialCommunityIcons name="video-outline" size={24} color={theme.colors.error} />
+                <Text style={[styles.optionText, { color: theme.colors.error }]}>Video</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.optionButton, { backgroundColor: theme.colors.tertiary + '20' }]}
+                onPress={() => setContentType('poll')}
+                accessibilityRole="button"
+                accessibilityLabel="Create poll"
+                accessibilityHint="Create a poll for others to vote on"
+              >
+                <MaterialCommunityIcons name="poll" size={24} color={theme.colors.tertiary} />
+                <Text style={[styles.optionText, { color: theme.colors.tertiary }]}>Poll</Text>
+              </TouchableOpacity>
             </View>
-        )}
-
-        {error && <Text style={[styles.errorText, { color: theme.colors.error }]}>{error}</Text>}
-
+          </Surface>
+        </Animated.View>
       </ScrollView>
-    </Surface>
+
+      <Animated.View 
+        entering={SlideInUp.delay(300).duration(400)}
+        style={[styles.bottomButtonContainer, { backgroundColor: theme.colors.background }]}
+      >
+        <Button
+          mode="contained"
+          onPress={handleCreatePost}
+          loading={loading}
+          disabled={loading || (!postContent.trim() && contentType === 'text')}
+          style={styles.postButton}
+          contentStyle={styles.postButtonContent}
+          labelStyle={styles.postButtonLabel}
+        >
+          Post
+        </Button>
+      </Animated.View>
+      
+      {loading && <LoadingOverlay />}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  bottomButtonContainer: {
+    backgroundColor: 'white',
+    borderTopColor: 'rgba(0,0,0,0.1)',
+    borderTopWidth: 1,
+    padding: 16,
+  },
+  cancelButton: {
+    left: 16,
+    position: 'absolute',
+  },
+  cancelText: {
+    color: '#fff',
+    fontWeight: '500',
+  },
   container: {
     flex: 1,
   },
-  scrollContent: {
+  content: {
+    flex: 1,
     padding: 16,
   },
-  textInput: {
-    marginBottom: 16,
-    minHeight: 100,
+  errorText: {
+    marginTop: 16,
+    textAlign: 'center',
   },
-  chipContainer: {
+  headerSurface: {
+    padding: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    backgroundColor: '#5D3FD3', // Match RegionListScreen
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 16,
-  },
-  chip: {
-  },
-  mediaPreviewContainer: {
-    marginBottom: 16,
-    position: 'relative',
     alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
-  mediaPreview: {
-    width: '100%',
-    aspectRatio: 16 / 9,
-    borderRadius: 8,
-    backgroundColor: '#eee',
+  headerTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
-  removeMediaButton: {
-      position: 'absolute',
-      top: 4,
-      right: 4,
-      backgroundColor: 'rgba(255, 255, 255, 0.7)',
+  inputSurface: {
+    borderRadius: 12,
+    marginBottom: 16,
+    padding: 16,
   },
   loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    bottom: 0,
+    justifyContent: 'center',
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
   },
   loadingText: {
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
   },
-  errorText: {
-    textAlign: 'center',
-    marginTop: 16,
+  mediaPreview: {
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    height: 200,
+    justifyContent: 'center',
+    width: '100%',
+  },
+  mediaPreviewContainer: {
+    position: 'relative',
+  },
+  mediaSurface: {
+    borderRadius: 12,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  optionButton: {
+    alignItems: 'center',
+    borderRadius: 8,
+    flexDirection: 'row',
+    flex: 1,
+    marginHorizontal: 4,
+    padding: 12,
+  },
+  optionText: {
+    fontWeight: '500',
+    marginLeft: 8,
+  },
+  optionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  optionsSurface: {
+    borderRadius: 12,
+    marginBottom: 16,
+    padding: 16,
+  },
+  optionsTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 12,
+  },
+  postButton: {
+    borderRadius: 30,
+  },
+  postButtonContent: {
+    height: 52,
+  },
+  postButtonLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  removeMediaButton: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    position: 'absolute',
+    right: 8,
+    top: 8,
+  },
+  textInput: {
+    fontSize: 16,
+    minHeight: 100,
+    textAlignVertical: 'top',
   },
 });
 

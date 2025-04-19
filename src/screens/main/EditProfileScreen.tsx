@@ -3,7 +3,7 @@ import { View, StyleSheet, ScrollView, Alert, Platform, Image, Text } from 'reac
 import { TextInput, Button, Avatar, useTheme, Surface, ActivityIndicator, HelperText } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ProfileStackParamList } from '../../navigation/types';
+import { MainStackParamList, ProfileStackParamList } from '../../navigation/types';
 import { useAuth } from '../../contexts/AuthContext';
 import { userService } from '../../services/user';
 import * as ImagePicker from 'expo-image-picker';
@@ -56,9 +56,9 @@ export const EditProfileScreen: React.FC = () => {
       try {
         const profile = await userService.getProfile(user.id);
         setFormData({
-          username: profile.username || '',
-          bio: profile.bio || '',
-          profile_picture: profile.profile_picture,
+          username: profile.data?.username || '',
+          bio: profile.data?.bio || '',
+          profile_picture: profile.data?.profile_picture,
         });
       } catch (err: any) {
         console.error('Error fetching profile:', err);
@@ -358,32 +358,12 @@ export const EditProfileScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scrollContent: {
-    padding: 16,
+  avatarButton: {
+    marginTop: 8,
   },
   avatarContainer: {
     alignItems: 'center',
     marginBottom: 24,
-  },
-  avatarButton: {
-    marginTop: 8,
-  },
-  imageSelectedText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: 'green',
-    fontStyle: 'italic',
-  },
-  input: {
-    marginBottom: 16,
   },
   bioInput: {
     minHeight: 100,
@@ -391,9 +371,29 @@ const styles = StyleSheet.create({
   button: {
     marginTop: 8,
   },
+  centerContainer: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  container: {
+    flex: 1,
+  },
   errorText: {
     marginBottom: 8,
     textAlign: 'center',
+  },
+  imageSelectedText: {
+    color: 'green',
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 8,
+  },
+  input: {
+    marginBottom: 16,
+  },
+  scrollContent: {
+    padding: 16,
   }
 });
 

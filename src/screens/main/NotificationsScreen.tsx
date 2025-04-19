@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, FlatList } from 'react-native';
+import { View, StyleSheet, FlatList, StyleProp, ViewStyle } from 'react-native';
 import { Text, useTheme, ActivityIndicator, Surface, Appbar, List, Avatar, Divider } from 'react-native-paper';
 import { useAuth } from '../../contexts/AuthContext';
-import { activityService, Activity } from '../../services/activity';
+import { activityService, Activity, getActivityDescription, getUserNotifications } from '../../services/activity';
 import { MainStackScreenProps } from '../../types/navigation';
 import { formatDistanceToNow } from 'date-fns';
 
 type Props = MainStackScreenProps<'Notifications'>;
-type ListItemProps = { color: string; style?: any };
+type ListItemProps = { color: string; style?: StyleProp<ViewStyle> };
 
 export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
   const theme = useTheme();
@@ -17,54 +17,67 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
 
   useEffect(() => {
     if (user) {
-        fetchActivities(user.id);
+      fetchNotifications(user.id);
     }
   }, [user]);
 
-  const fetchActivities = async (userId: string) => {
+  const fetchNotifications = async (userId: string) => {
     setLoading(true);
     try {
-      const data = await activityService.getActivitiesByUserId(userId);
-      setActivities(data);
+      // Get activities where the user is the target (notifications) instead of activities by the user
+      const response = await getUserNotifications(userId);
+      setActivities(response.data || []);
     } catch (error) {
-      console.error('Error fetching activities:', error);
+      console.error('Error fetching notifications:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const getActivityDescription = (activity: Activity): string => {
-    const actorName = activity.user?.username || 'Someone';
-    switch (activity.action_type) {
-      case 'post':
-        return `${actorName} created a new post.`;
-      case 'comment':
-        return `${actorName} commented.`;
+  const getActivityIcon = (actionType: string): string => {
+    switch (actionType) {
+      case 'new_post':
+        return 'file-document-outline';
+      case 'new_comment':
+        return 'comment-outline';
       case 'like':
-        return `${actorName} liked something.`;
+        return 'heart';
       case 'follow':
-        return `${actorName} started following you.`;
+        return 'account-plus';
+      case 'mention':
+        return 'at';
+      case 'reply':
+        return 'reply';
+      case 'repost':
+        return 'repeat';
+      case 'create_poll':
+        return 'poll';
+      case 'vote_poll':
+        return 'vote';
       default:
-        return `${actorName} performed an action.`;
+        return 'bell';
     }
   };
 
   const handleActivityPress = (activity: Activity) => {
     switch (activity.action_type) {
-      case 'post':
-      case 'comment':
+      case 'new_post':
+      case 'new_comment':
       case 'like':
-        if (activity.target_id) {
-            console.log("Navigating to Post:", activity.target_id);
+      case 'vote_poll':
+      case 'create_poll':
+        if (activity.target_type === 'post' && activity.target_id) {
+          navigation.navigate('PostDetails', { postId: activity.target_id });
         } else {
-            console.warn("Missing target_id for post/comment/like activity:", activity.id);
+          console.warn("Missing target_id for post-related activity:", activity.id);
         }
         break;
       case 'follow':
+      case 'mention':
         if (activity.actor_id) {
-             console.log("Navigating to User Profile:", activity.actor_id);
+          navigation.navigate('Profile', { userId: activity.actor_id });
         } else {
-             console.warn("Missing actor_id for follow activity:", activity.id);
+          console.warn("Missing actor_id for user-related activity:", activity.id);
         }
         break;
       default:
@@ -74,7 +87,9 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
 
   const renderItem = ({ item }: { item: Activity }) => {
     const timeAgo = formatDistanceToNow(new Date(item.created_at), { addSuffix: true });
-    const description = getActivityDescription(item);
+    const actorName = item.user?.username || 'Someone';
+    const description = getActivityDescription(item.action_type, actorName);
+    const icon = getActivityIcon(item.action_type);
 
     return (
       <List.Item
@@ -86,17 +101,21 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
         left={(props: ListItemProps) => (
           item.user?.profile_picture
           ? <Avatar.Image {...props} source={{ uri: item.user.profile_picture }} size={40} />
-          : <Avatar.Icon {...props} icon="account-circle" size={40} />
+          : <Avatar.Icon {...props} icon={icon} size={40} />
         )}
       />
     );
-  }
+  };
 
   return (
     <Surface style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Appbar.Header>
-         <Appbar.Content title="Activity" />
-         <Appbar.Action icon="refresh" onPress={() => user && fetchActivities(user.id)} disabled={loading} />
+         <Appbar.Content title="Notifications" />
+         <Appbar.Action 
+           icon="refresh" 
+           onPress={() => user && fetchNotifications(user.id)} 
+           disabled={loading} 
+         />
       </Appbar.Header>
 
       {loading && activities.length === 0 ? (
@@ -114,7 +133,7 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
                 !loading ? (
                     <View style={styles.centerContainer}>
                         <Text variant="titleMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-                            No recent activity.
+                            No notifications yet.
                         </Text>
                     </View>
                 ) : null
@@ -126,14 +145,14 @@ export const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   centerContainer: {
+    alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
     padding: 16,
+  },
+  container: {
+    flex: 1,
   },
   listContent: {
     paddingBottom: 16,

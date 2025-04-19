@@ -40,12 +40,10 @@ export const spacing = {
   xxl: 48,
 };
 
-// Get appropriate spacing based on screen size
-export const getResponsiveSpacing = (size: keyof typeof spacing) => {
+// Custom hook: use inside components/hooks only
+export const useResponsiveSpacing = (size: keyof typeof spacing) => {
   const { deviceType } = useResponsive();
   const baseSpacing = spacing[size];
-  
-  // Scale spacing based on device type
   switch (deviceType) {
     case 'desktop':
       return baseSpacing * 1.5;
@@ -57,23 +55,17 @@ export const getResponsiveSpacing = (size: keyof typeof spacing) => {
 };
 
 // Helper to create responsive styles
-export const createResponsiveStyles = (styles: any) => {
+// Custom hook: use inside components/hooks only
+export const useResponsiveStyles = (styles: any) => {
   const { deviceType, isWeb } = useResponsive();
-  
-  // Base styles
   let responsiveStyles = { ...styles.base };
-  
-  // Add device specific styles
   if (styles[deviceType]) {
     responsiveStyles = { ...responsiveStyles, ...styles[deviceType] };
   }
-  
-  // Add platform specific styles
   if (isWeb && styles.web) {
     responsiveStyles = { ...responsiveStyles, ...styles.web };
   } else if (!isWeb && styles.native) {
     responsiveStyles = { ...responsiveStyles, ...styles.native };
   }
-  
   return responsiveStyles;
 }; 

@@ -35,15 +35,15 @@ export const Header: React.FC<HeaderProps> = ({
 };
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
   logo: {
-    width: 40,
     height: 40,
     marginRight: 8,
+    width: 40,
+  },
+  titleContainer: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flex: 1,
   },
 });
 

@@ -3,6 +3,7 @@ export interface Post {
   user_id: string;
   content: string;
   image_url?: string;
+  video_url?: string;
   created_at: string;
   likes_count: number;
   comments_count: number;
@@ -13,8 +14,10 @@ export interface Comment {
   id: string;
   post_id: string;
   user_id: string;
-  text: string;
+  content: string;
   created_at: string;
+  updated_at?: string;
+  likes_count?: number;
   user?: User;
   post?: Post;
 }
@@ -71,21 +74,26 @@ export interface Message {
 }
 
 export type ActivityType = 
-  | 'post'
-  | 'comment'
+  | 'new_post'
+  | 'new_comment'
   | 'like'
   | 'follow'
   | 'ban'
   | 'unban'
   | 'delete_post'
+  | 'report'
   | 'create_poll'
-  | 'vote_poll';
+  | 'vote_poll'
+  | 'mention'
+  | 'reply'
+  | 'repost';
 
 export interface Activity {
   id: string;
-  type: ActivityType;
-  user_id: string;
+  action_type: ActivityType;
+  actor_id: string;
   target_id: string;
+  target_type?: string;
   created_at: string;
   post?: Post;
   comment?: Comment;

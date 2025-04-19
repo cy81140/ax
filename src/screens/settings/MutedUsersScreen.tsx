@@ -178,28 +178,28 @@ const MutedUsersScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  centerContainer: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+  },
   container: {
     flex: 1,
   },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   emptyContainer: {
-    flexGrow: 1,
     alignItems: 'center',
+    flexGrow: 1,
     justifyContent: 'center',
-    padding: 32,
     minHeight: 200,
+    padding: 32,
   },
   errorText: {
     margin: 16,
     textAlign: 'center',
   },
   listContent: {
-    paddingBottom: 16,
     flexGrow: 1,
+    paddingBottom: 16,
   },
 });
 

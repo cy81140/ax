@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { TextInput, Button, Text } from 'react-native-paper';
-import { supabase } from '../../services/supabase';
-import { theme } from '../../constants/theme';
+import { View, StyleSheet, Platform } from 'react-native';
+import { TextInput, Button, Text, useTheme, Avatar } from 'react-native-paper';
+import { supabase, logSupabaseError } from '../../lib/supabase';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../navigation/types';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'ForgotPassword'>;
 
 const ForgotPasswordScreen = ({ navigation }: Props) => {
+  const theme = useTheme();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,16 +39,33 @@ const ForgotPasswordScreen = ({ navigation }: Props) => {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Reset Password</Text>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={styles.iconContainer}>
+        <Avatar.Icon 
+          size={120} 
+          icon="lock-reset" 
+          color={theme.colors.onPrimary}
+          style={{ backgroundColor: theme.colors.primary }}
+        />
+      </View>
+      <Text style={[styles.title, { color: theme.colors.onBackground }]}>Reset Password</Text>
       
       {error && (
-        <Text style={styles.error}>{error}</Text>
+        <Text style={[styles.error, { color: theme.colors.error }]}>
+          {error}
+        </Text>
       )}
 
       {success ? (
         <View style={styles.successContainer}>
-          <Text style={styles.successText}>
+          <View style={styles.successIconContainer}>
+            <MaterialCommunityIcons 
+              name="check-circle" 
+              size={64} 
+              color={theme.colors.primary} 
+            />
+          </View>
+          <Text style={[styles.successText, { color: theme.colors.primary }]}>
             Password reset instructions have been sent to your email.
           </Text>
           <Button
@@ -97,13 +115,16 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   container: {
-    backgroundColor: theme.colors.background,
     flex: 1,
     padding: 20,
   },
   error: {
-    color: theme.colors.error,
     marginBottom: 15,
+  },
+  iconContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+    justifyContent: 'center',
   },
   input: {
     marginBottom: 15,
@@ -111,16 +132,19 @@ const styles = StyleSheet.create({
   successContainer: {
     alignItems: 'center',
   },
+  successIconContainer: {
+    marginBottom: 16,
+  },
   successText: {
-    color: theme.colors.success,
     marginBottom: 20,
     textAlign: 'center',
+    fontSize: 16,
   },
   title: {
-    color: theme.colors.text,
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 20,
+    textAlign: 'center',
   },
 });
 

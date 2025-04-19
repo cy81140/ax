@@ -4,11 +4,13 @@ import { Text, Card, Avatar, Button, ActivityIndicator } from 'react-native-pape
 import { supabase } from '../../services/supabase';
 import { theme } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { HomeStackParamList } from '../../navigation/types';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { MainStackParamList } from '../../navigation/types';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-type Props = NativeStackScreenProps<HomeStackParamList, 'Feed'>;
+// Define the navigation prop type
+type FeedScreenNavigationProp = NativeStackNavigationProp<MainStackParamList>;
 
 interface Post {
   id: string;
@@ -24,7 +26,8 @@ interface Post {
   comments: number;
 }
 
-const FeedScreen = ({ navigation }: Props) => {
+const FeedScreen = () => {
+  const navigation = useNavigation<FeedScreenNavigationProp>();
   const { user } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +41,7 @@ const FeedScreen = ({ navigation }: Props) => {
         .from('posts')
         .select(`
           *,
-          user:users(username, profile_picture),
+          user:users!posts_user_id_fkey(username, profile_picture),
           likes:post_likes(count)
         `)
         .order('created_at', { ascending: false })

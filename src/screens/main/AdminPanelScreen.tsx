@@ -163,38 +163,38 @@ export const AdminPanelScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     backgroundColor: '#fff',
-  },
-  title: {
-    textAlign: 'center',
-    marginVertical: 16,
+    flex: 1,
   },
   message: {
-    textAlign: 'center',
     marginHorizontal: 16,
+    textAlign: 'center',
   },
   retryButton: {
-    marginTop: 16,
     marginHorizontal: 16,
+    marginTop: 16,
+  },
+  statItem: {
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    marginBottom: 16,
+    padding: 16,
+    width: '48%',
   },
   statsContainer: {
     padding: 16,
-  },
-  statsTitle: {
-    marginBottom: 16,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
-  statItem: {
-    width: '48%',
-    backgroundColor: '#f5f5f5',
-    padding: 16,
-    borderRadius: 8,
+  statsTitle: {
     marginBottom: 16,
-    alignItems: 'center',
+  },
+  title: {
+    marginVertical: 16,
+    textAlign: 'center',
   },
 }); 

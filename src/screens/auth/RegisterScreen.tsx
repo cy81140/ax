@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Image, View } from 'react-native';
-import { TextInput, Button, Text, useTheme, Surface, HelperText } from 'react-native-paper';
+import { TextInput, Button, Text, useTheme, Surface, HelperText, Avatar } from 'react-native-paper';
 import { useAuth } from '../../contexts/AuthContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../navigation/types';
+import { LottieWrapper } from '../../components/animations/LottieWrapper';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
@@ -68,19 +69,68 @@ const RegisterScreen = ({ navigation }: Props) => {
     } catch (err) {
       console.error("Registration Error:", err);
       let message = 'An error occurred during registration.';
+      
+      // Clear all previous errors
+      setUsernameError(null);
+      setEmailError(null);
+      setPasswordError(null);
+      setConfirmPasswordError(null);
+      
       if (err instanceof Error) {
-          if (err.message.includes('duplicate key value violates unique constraint "users_username_key"')) {
-              message = 'Username already taken. Please choose another.';
-              setUsernameError(message);
-          } else if (err.message.includes('duplicate key value violates unique constraint "users_email_key"')) {
-              message = 'Email already registered. Please log in.';
-              setEmailError(message);
-          } else {
-              message = err.message;
-          }
+        const errorMessage = err.message.toLowerCase();
+        
+        // Handle specific error types
+        if (errorMessage.includes('username') && 
+            (errorMessage.includes('taken') || 
+             errorMessage.includes('already') || 
+             errorMessage.includes('duplicate') || 
+             errorMessage.includes('users_username_key'))) {
+          message = 'Username already taken. Please choose another.';
+          setUsernameError(message);
+        } 
+        else if (errorMessage.includes('email') && 
+                (errorMessage.includes('taken') || 
+                 errorMessage.includes('already') || 
+                 errorMessage.includes('duplicate') || 
+                 errorMessage.includes('users_email_key'))) {
+          message = 'Email already registered. Please log in.';
+          setEmailError(message);
+        }
+        else if (errorMessage.includes('password') && 
+                 errorMessage.includes('weak')) {
+          message = 'Password is too weak. Please use a stronger password.';
+          setPasswordError(message);
+        }
+        else if (errorMessage.includes('network') || 
+                 errorMessage.includes('connect')) {
+          message = 'Network error. Please check your internet connection.';
+        }
+        else if (errorMessage.includes('profile')) {
+          message = 'Account created but profile setup failed. Please try logging in or contact support.';
+        }
+        else {
+          // Use the original error message if we don't have a specific handler
+          message = err.message;
+        }
+      } else if (typeof err === 'object' && err !== null) {
+        // Handle error objects with code and message properties
+        const errorObj = err as any;
+        
+        if (errorObj.code === 'USERNAME_TAKEN') {
+          message = errorObj.message || 'Username already taken. Please choose another.';
+          setUsernameError(message);
+        }
+        else if (errorObj.code === 'EMAIL_TAKEN') {
+          message = errorObj.message || 'Email already registered. Please log in.';
+          setEmailError(message);
+        }
+        else if (errorObj.message) {
+          message = errorObj.message;
+        }
       } else {
-          message = String(err);
+        message = String(err);
       }
+      
       setGeneralError(message);
     } finally {
       setLoading(false);
@@ -95,6 +145,13 @@ const RegisterScreen = ({ navigation }: Props) => {
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <Surface style={[styles.content, { backgroundColor: theme.colors.background }]}>
+          <View style={styles.lottieContainer}>
+            <LottieWrapper
+              source={require('../../../assets/animations/lottieflow-multimedia-8-6-000000-easey.json')}
+              icon="account-plus-outline"
+              style={{ width: 180, height: 180, alignSelf: 'center' }}
+            />
+          </View>
           <View style={styles.logoContainer}>
             <Image 
               source={require('../../../assets/app-logo.png')} 
@@ -187,40 +244,47 @@ const RegisterScreen = ({ navigation }: Props) => {
 };
 
 const styles = StyleSheet.create({
+  button: {
+    marginTop: 16,
+  },
   container: {
     flex: 1,
   },
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
   content: {
     padding: 24,
+  },
+  generalError: {
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  input: {
+    marginBottom: 4,
+  },
+  linkButton: {
+    marginTop: 16,
+  },
+  logo: {
+    height: 100,
+    width: 100,
   },
   logoContainer: {
     alignItems: 'center',
     marginBottom: 20,
   },
-  logo: {
-    width: 100,
-    height: 100,
+  lottieContainer: {
+    marginBottom: 20,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   title: {
-    textAlign: 'center',
     marginBottom: 24,
-  },
-  input: {
-    marginBottom: 4,
-  },
-  button: {
-    marginTop: 16,
-  },
-  linkButton: {
-    marginTop: 16,
-  },
-  generalError: {
     textAlign: 'center',
-    marginBottom: 8,
+  },
+  webLogoContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

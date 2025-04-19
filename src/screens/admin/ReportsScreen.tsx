@@ -123,15 +123,15 @@ const ReportsScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  card: {
+    marginBottom: 16,
+  },
   container: {
-    flex: 1,
     backgroundColor: '#f5f5f5',
+    flex: 1,
   },
   list: {
     padding: 16,
-  },
-  card: {
-    marginBottom: 16,
   },
 });
 

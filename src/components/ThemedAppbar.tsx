@@ -37,15 +37,15 @@ const ThemedAppbar: React.FC<ThemedAppbarProps> = ({ navigation, back, options, 
 };
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
   logo: {
-    width: 36,
     height: 36,
     marginRight: 8,
+    width: 36,
+  },
+  titleContainer: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flex: 1,
   },
 });
 

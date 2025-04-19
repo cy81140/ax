@@ -50,17 +50,17 @@ export const AnimatedButton: React.FC<AnimatedButtonProps> = ({
 
 const styles = StyleSheet.create({
   button: {
-    padding: 12,
-    borderRadius: 8,
     alignItems: 'center',
+    borderRadius: 8,
+    elevation: 5,
     justifyContent: 'center',
+    padding: 12,
     shadowOffset: {
       width: 0,
       height: 2
     },
     shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5
+    shadowRadius: 3.84
   },
   text: {
     fontSize: 16,

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, Switch, SegmentedButtons } from 'react-native-paper';
-import { useTheme } from '../context/ThemeContext';
+import { useAppTheme } from '../contexts/ThemeContext';
 
 type ThemeToggleProps = {
   label?: string;
@@ -16,23 +16,23 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
   label = 'Dark Mode', 
   useSwitchStyle = false 
 }) => {
-  const { themeType, setThemeType, isDarkMode } = useTheme();
+  const { themeType, toggleTheme, isDark } = useAppTheme();
 
   const handleThemeChange = (value: string) => {
-    setThemeType(value as 'light' | 'dark' | 'system');
+    toggleTheme(value as 'light' | 'dark' | 'system');
   };
 
   // Simple switch just toggles between light and dark
   if (useSwitchStyle) {
     const toggleSwitch = () => {
-      setThemeType(isDarkMode ? 'light' : 'dark');
+      toggleTheme(isDark ? 'light' : 'dark');
     };
 
     return (
       <View style={styles.switchContainer}>
         <Text style={styles.switchLabel}>{label}</Text>
         <Switch
-          value={isDarkMode}
+          value={isDark}
           onValueChange={toggleSwitch}
         />
       </View>

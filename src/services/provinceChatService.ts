@@ -1,20 +1,23 @@
-import { supabase } from './supabase';
+import { supabase, logSupabaseError, checkSession } from '../lib/supabase';
 import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+// Remove invalid imports
+// import { Region } from './regionService'; 
+// import { Province } from './provinceService'; 
+
 // Define interfaces based on your new schema (or use Supabase generated types)
-// Example placeholder types:
-interface UserProfile { // Assuming you have a public users/profiles table
+// Export the main definitions used throughout the file
+export interface UserProfile { // Assuming you have a public users/profiles table
   id: string;
   username: string;
   profile_picture?: string;
 }
-interface Region { id: string; name: string; description?: string; created_at?: string; updated_at?: string; }
-interface Province { id: string; name: string; region_id?: string; description?: string; created_at?: string; updated_at?: string; }
-interface ProvinceChat { 
+export interface Region { id: string; name: string; description?: string; created_at?: string; updated_at?: string; }
+export interface Province { id: string; name: string; region_id?: string; description?: string; created_at?: string; updated_at?: string; }
+export interface ProvinceChat { 
   id: string; 
-  name: string; 
-  region_id?: string; 
-  province_id?: string;
-  description?: string; 
+  province_id: string;
+  name?: string;
+  description?: string;
   last_message_at?: string;
   message_count?: number;
   is_active?: boolean;
@@ -23,8 +26,9 @@ interface ProvinceChat {
   updated_at?: string;
   created_by?: string;
 }
-interface ProvinceChatMember { province_chat_id: string; user_id: string; joined_at?: string; last_read_message_id?: string; }
-interface ProvinceMessage {
+export interface ProvinceChatMember { province_chat_id: string; user_id: string; joined_at?: string; last_read_message_id?: string; }
+// Use and export ProvinceMessage consistently
+export interface ProvinceMessage {
     id: string; 
     province_chat_id: string; 
     user_id: string; 
@@ -33,26 +37,25 @@ interface ProvinceMessage {
     created_at?: string; 
     users?: Pick<UserProfile, 'username' | 'profile_picture'>; // Joined user info
 }
-// Define a more specific type for the result of getUserProvinceChats
+// Define UserProvinceChat locally if only used here, or export if needed elsewhere
 interface UserProvinceChat {
     province_chat_id: string;
     province_chats: ProvinceChat | null; // Joined chat details
-    // Add other fields from province_chat_members if needed
 }
 
-// Reusable helper for handling Supabase queries (similar to before)
-// Update this function to accept both Promise and Postgrest query builders
-async function handleSupabaseQuery<T>(query: any): Promise<{ data: T | null; error: any }> {
+// Reusable helper for handling Supabase queries
+async function handleSupabaseQuery<T>(query: any, operationName: string): Promise<{ data: T | null; error: any }> {
   try {
+    console.log(`[provinceChatService] ${operationName} - Starting operation`);
     const { data, error } = await query;
     if (error) {
-        // Log the specific Supabase error code and details if available
-        console.error(`Supabase query error: Code: ${error.code}, Details: ${error.details}, Message: ${error.message}`);
-        throw error; // Re-throw the original error object
+        console.error(`[provinceChatService] ${operationName} - Error:`, error.code, error.message);
+        return { data: null, error };
     }
+    console.log(`[provinceChatService] ${operationName} - Success:`, Array.isArray(data) ? `${data.length} items` : data ? 'Data received' : 'No data');
     return { data, error: null };
   } catch (error: any) {
-    // Ensure a consistent error structure is returned
+    logSupabaseError(error, `provinceChatService.${operationName}`);
     return { 
         data: null, 
         error: { 
@@ -63,276 +66,354 @@ async function handleSupabaseQuery<T>(query: any): Promise<{ data: T | null; err
   }
 }
 
-// TODO: Implement subscription management (similar to manageSubscription in old chatService)
+// Subscription management map and helper function
 const activeProvinceChannels = new Map<string, RealtimeChannel>();
-
-// Generic subscription helper (adapt from previous chat service)
-// Add constraint to T to ensure it's an object type
 function manageProvinceSubscription<T extends { [key: string]: any }>(
   channelKeyPrefix: string,
   provinceChatId: string,
-  tableName: string, // e.g., 'province_messages', 'province_chat_members'
+  tableName: string, 
   callback: (payload: RealtimePostgresChangesPayload<T>) => void
 ): RealtimeChannel | undefined {
     const channelKey = `${channelKeyPrefix}:${provinceChatId}`;
     if (activeProvinceChannels.has(channelKey)) {
-        console.log(`Already subscribed to ${tableName} for: ${channelKey}`);
+        console.log(`[provinceChatService] Already subscribed to ${tableName} for: ${channelKey}`);
         return activeProvinceChannels.get(channelKey);
     }
 
-    console.log(`Subscribing to ${tableName} for: ${channelKey}`);
+    console.log(`[provinceChatService] Subscribing to ${tableName} for: ${channelKey}`);
+    
+    try {
     const channel = supabase
         .channel(channelKey)
         .on<T>(
             'postgres_changes',
             {
-                event: '*', // Listen to INSERT, UPDATE, DELETE
+                event: '*',
                 schema: 'public',
                 table: tableName,
-                filter: `province_chat_id=eq.${provinceChatId}` // Filter by chat ID
+                filter: `province_chat_id=eq.${provinceChatId}`
             },
-            (payload: RealtimePostgresChangesPayload<T>) => { // Add explicit type here
-                // Basic payload check 
-                if (payload.new || payload.old) { // Check if there's data
+            (payload: RealtimePostgresChangesPayload<T>) => { 
+                console.log(`[provinceChatService] Received ${tableName} realtime event:`, payload.eventType);
+                if (payload.new || payload.old) { 
                     callback(payload);
                 } else {
-                    console.warn(`Received event without data for ${tableName} (${channelKey}):`, payload);
+                    console.warn(`[provinceChatService] Received event without data for ${tableName} (${channelKey}):`, payload);
                 }
             }
         )
         .subscribe((status, err) => {
             if (status === 'SUBSCRIBED') {
-                 console.log(`Successfully subscribed to ${tableName} for ${channelKey}`);
+                console.log(`[provinceChatService] Successfully subscribed to ${tableName} for ${channelKey}`);
             } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || err) {
-                console.error(`Subscription error for ${tableName} (${channelKey}): ${status}`, err || 'Unknown error');
-                // Optionally: Implement retry logic or notify UI
-                activeProvinceChannels.delete(channelKey); // Remove from active channels on error
+                console.error(`[provinceChatService] Subscription error for ${tableName} (${channelKey}): ${status}`, err || 'Unknown error');
+                activeProvinceChannels.delete(channelKey); 
+                    
+                // Try to resubscribe after a delay
+                setTimeout(() => {
+                    console.log(`[provinceChatService] Attempting to resubscribe to ${channelKey} after error`);
+                    manageProvinceSubscription(channelKeyPrefix, provinceChatId, tableName, callback);
+                }, 5000);
             } else {
-                console.log(`Subscription status for ${tableName} (${channelKey}): ${status}`);
-                 if (status === 'CLOSED') {
-                     activeProvinceChannels.delete(channelKey);
-                 }
+                console.log(`[provinceChatService] Subscription status for ${tableName} (${channelKey}): ${status}`);
+                if (status === 'CLOSED') {
+                    activeProvinceChannels.delete(channelKey);
+                }
             }
         });
 
     activeProvinceChannels.set(channelKey, channel);
     return channel;
+    } catch (error) {
+        console.error(`[provinceChatService] Error setting up subscription to ${tableName} for ${channelKey}:`, error);
+        return undefined;
+    }
 }
 
+// Exported service object with all functions
 export const provinceChatService = {
-
   async getRegions(): Promise<{ data: Region[] | null; error: any }> {
-    console.log('getRegions called');
-    // Fetch regions, order by name for display
-    return handleSupabaseQuery<Region[]>(
-        supabase.from('regions').select('*').order('name')
+    // Get regions with basic ordering
+    const result = await handleSupabaseQuery<Region[]>(
+        supabase.from('regions').select('*'),
+        'getRegions'
     );
+    
+    // If we have data, sort numerically by the numbers in region names
+    if (result.data && Array.isArray(result.data)) {
+      result.data.sort((a, b) => {
+        // Extract numbers from region names
+        const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+        const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+        return numA - numB;
+      });
+    }
+    
+    return result;
   },
 
   async getProvinceChatsByRegion(regionId: string): Promise<{ data: ProvinceChat[] | null; error: any }> {
-    console.log('getProvinceChatsByRegion called for region:', regionId);
     if (!regionId) return { data: null, error: { message: 'Region ID is required' } };
-    // Fetch provinces for the region, order by name
     return handleSupabaseQuery<ProvinceChat[]>(
-        supabase.from('province_chats').select('*').eq('region_id', regionId).order('name')
+        supabase.from('province_chats').select('*').eq('region_id', regionId).order('name'),
+        `getProvinceChatsByRegion(${regionId})`
     );
   },
 
   async getProvinces(): Promise<{ data: Province[] | null; error: any }> {
-    console.log('getProvinces called');
-    // Fetch all provinces, order by name
-    return handleSupabaseQuery<Province[]>(
-        supabase.from('provinces').select('*').order('name')
+    // Get provinces without ordering from database
+    const result = await handleSupabaseQuery<Province[]>(
+        supabase.from('provinces').select('*'),
+        'getProvinces'
     );
+    
+    // Sort numerically if we have data
+    if (result.data && Array.isArray(result.data)) {
+      result.data.sort((a, b) => {
+        // Extract numbers from province names
+        const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+        const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+        return numA - numB;
+      });
+    }
+    
+    return result;
   },
 
   async getProvincesByRegion(regionId: string): Promise<{ data: Province[] | null; error: any }> {
-    console.log('getProvincesByRegion called for region:', regionId);
     if (!regionId) return { data: null, error: { message: 'Region ID is required' } };
-    // Fetch provinces for the region, order by name
-    return handleSupabaseQuery<Province[]>(
-        supabase.from('provinces').select('*').eq('region_id', regionId).order('name')
+    
+    // Get provinces for this region without ordering
+    const result = await handleSupabaseQuery<Province[]>(
+        supabase.from('provinces').select('*').eq('region_id', regionId),
+        `getProvincesByRegion(${regionId})`
     );
+    
+    // Sort numerically if we have data
+    if (result.data && Array.isArray(result.data)) {
+      result.data.sort((a, b) => {
+        // Extract numbers from province names
+        const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+        const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+        return numA - numB;
+      });
+    }
+    
+    return result;
   },
 
-  async joinProvinceChat(provinceChatId: string, userId: string): Promise<{ data: ProvinceChatMember | null; error: any }> {
-    console.log('joinProvinceChat called for:', provinceChatId, userId);
-    if (!provinceChatId || !userId) return { data: null, error: { message: 'Province Chat ID and User ID are required' } };
-    // Direct insert relies on RLS allowing self-insert
-    return handleSupabaseQuery<ProvinceChatMember>(
-      supabase.from('province_chat_members')
-              .insert({ province_chat_id: provinceChatId, user_id: userId })
-              .select()
-              .single()
-    );
+  async joinProvinceChat(provinceChatId: string, userId: string, provinceId?: string): Promise<{ data: null; error: any }> {
+    if (!provinceChatId || !userId) {
+      console.error('[provinceChatService] joinProvinceChat - Missing required parameters');
+      return { data: null, error: { message: 'Missing required parameters' } };
+    }
+
+    try {
+      console.log(`[provinceChatService] Joining chat ${provinceChatId} for user ${userId}`);
+      
+      // First check if user is already a member
+      const { data: existingMembership, error: membershipCheckError } = await supabase
+        .from('province_chat_members')
+        .select('*')
+        .eq('province_chat_id', provinceChatId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      if (membershipCheckError) {
+        console.error('[provinceChatService] Error checking membership:', membershipCheckError);
+        return { data: null, error: membershipCheckError };
+      }
+      
+      // If already a member, return success
+      if (existingMembership) {
+        console.log('[provinceChatService] User already a member of this chat');
+        return { data: null, error: null };
+      }
+      
+      // Otherwise, add the user as a member
+      const { error: joinError } = await supabase
+        .from('province_chat_members')
+        .insert({
+          province_chat_id: provinceChatId,
+          user_id: userId,
+          joined_at: new Date().toISOString()
+        });
+      
+      if (joinError) {
+        console.error('[provinceChatService] Error joining chat:', joinError);
+        return { data: null, error: joinError };
+      }
+      
+      console.log('[provinceChatService] Successfully joined chat');
+      return { data: null, error: null };
+    } catch (error) {
+      console.error('[provinceChatService] Unexpected error joining chat:', error);
+      return { data: null, error: { message: 'An unexpected error occurred', details: error } };
+    }
   },
 
   async leaveProvinceChat(provinceChatId: string, userId: string): Promise<{ data: any | null; error: any }> {
-    console.log('leaveProvinceChat called for:', provinceChatId, userId);
-    if (!provinceChatId || !userId) return { data: null, error: { message: 'Province Chat ID and User ID are required' } };
-    // Direct delete relies on RLS allowing self-delete
-     return handleSupabaseQuery<any>(
-       supabase.from('province_chat_members')
-               .delete()
-               .match({ province_chat_id: provinceChatId, user_id: userId })
-     );
+    if (!provinceChatId || !userId) {
+      console.error('[provinceChatService] leaveProvinceChat - Missing required parameters');
+      return { data: null, error: { message: 'Missing required parameters' } };
+    }
+
+    return handleSupabaseQuery(
+      supabase
+        .from('province_chat_members')
+        .delete()
+        .eq('province_chat_id', provinceChatId)
+        .eq('user_id', userId),
+      `leaveProvinceChat(${provinceChatId}, ${userId})`
+    );
   },
 
   async getUserProvinceChats(userId: string): Promise<{ data: UserProvinceChat[] | null; error: any }> {
-    console.log('getUserProvinceChats called for:', userId);
     if (!userId) return { data: null, error: { message: 'User ID is required' } };
-    // Join province_chats details. Order by last message time for display.
+    
     return handleSupabaseQuery<UserProvinceChat[]>(
-      supabase.from('province_chat_members')
-              .select(`
-                province_chat_id,
-                province_chats (
-                  id, 
-                  name, 
-                  description, 
-                  region_id, 
-                  last_message_at, 
-                  province_id, 
-                  message_count, 
-                  is_active, 
-                  chat_type
-                )
-              `)
-              .eq('user_id', userId)
-              // Ensure the joined province_chats table exists and is accessible via RLS
-              .order('last_message_at', { referencedTable: 'province_chats', ascending: false, nullsFirst: false })
+      supabase
+        .from('province_chat_members')
+        .select('province_chat_id, province_chats(*)')
+        .eq('user_id', userId),
+      `getUserProvinceChats(${userId})`
     );
   },
 
   async getProvinceMessages(provinceChatId: string, limit = 30, cursor?: string): Promise<{ data: ProvinceMessage[] | null; error: any }> {
-    console.log('getProvinceMessages called for:', provinceChatId, 'cursor:', cursor);
-    if (!provinceChatId) return { data: null, error: { message: 'Province Chat ID is required' } };
+    if (!provinceChatId) return { data: null, error: { message: 'Province chat ID is required' } };
     
     let query = supabase
-        .from('province_messages')
-        // Join user details for display
-        .select('*, users:user_id (username, profile_picture)') 
-        .eq('province_chat_id', provinceChatId)
-        .order('created_at', { ascending: false });
-
-    // Cursor pagination based on the created_at timestamp
+      .from('province_messages')
+      .select('*, users(username, profile_picture)')
+      .eq('province_chat_id', provinceChatId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    
     if (cursor) {
-      console.log('Applying cursor:', cursor);
       query = query.lt('created_at', cursor);
     }
     
-    query = query.limit(limit);
-
-    const result = await handleSupabaseQuery<ProvinceMessage[]>(query);
-    // Messages are fetched newest first, reverse for typical chat display (oldest at top)
-    if (result.data && Array.isArray(result.data)) {
-        result.data.reverse();
-    }
-    return result;
+    return handleSupabaseQuery<ProvinceMessage[]>(query, `getProvinceMessages(${provinceChatId})`);
   },
 
   async sendProvinceMessage(provinceChatId: string, userId: string, content: string): Promise<{ data: ProvinceMessage | null; error: any }> {
-    console.log('sendProvinceMessage called for:', provinceChatId, userId);
-    const trimmedContent = content.trim();
-    if (!provinceChatId || !userId || !trimmedContent) {
-         return { data: null, error: { message: 'Province Chat ID, User ID, and content are required.' } };
+    if (!provinceChatId || !userId || !content) {
+      console.error('[provinceChatService] sendProvinceMessage - Missing required parameters');
+      return { data: null, error: { message: 'Missing required parameters for sending message' } };
     }
-    
-    const messageToInsert = { 
-        province_chat_id: provinceChatId, 
-        user_id: userId, 
-        content: trimmedContent 
-    };
 
-    // Insert and select the newly created message with user details
-    return handleSupabaseQuery<ProvinceMessage>(
-        supabase.from('province_messages')
-                .insert(messageToInsert)
-                .select('*, users:user_id (username, profile_picture)')
-                .single()
-    );
+    // Verify session before sending
+    const { valid } = await checkSession();
+    if (!valid) {
+      console.error('[provinceChatService] sendProvinceMessage - No valid session found');
+      return { data: null, error: { message: 'Authentication required to send messages' } };
+    }
+
+    try {
+      console.log(`[provinceChatService] Sending message to chat ${provinceChatId}`);
+      
+      // Insert the message
+      const { data, error } = await supabase
+        .from('province_messages')
+        .insert({
+          province_chat_id: provinceChatId,
+          user_id: userId,
+          content: content,
+          created_at: new Date().toISOString()
+        })
+        .select('*, users(username, profile_picture)')
+        .single();
+      
+      if (error) {
+        console.error('[provinceChatService] Error sending message:', error);
+        return { data: null, error };
+      }
+      
+      console.log('[provinceChatService] Message sent successfully:', data?.id);
+      return { data, error: null };
+    } catch (error) {
+      console.error('[provinceChatService] Unexpected error sending message:', error);
+      return { data: null, error: { message: 'An unexpected error occurred', details: error } };
+    }
   },
 
   async deleteProvinceMessage(messageId: string): Promise<{ data: any | null; error: any }> {
-    console.log('deleteProvinceMessage called for:', messageId);
-     if (!messageId) return { data: null, error: { message: 'Message ID is required' } };
-     
-     return handleSupabaseQuery<any>(
-        supabase.from('province_messages').delete().eq('id', messageId)
-     );
-  },
-
-  async markProvinceMessagesAsRead(provinceChatId: string, userId: string, lastMessageId: string): Promise<{ data: Pick<ProvinceChatMember, 'last_read_message_id'>[] | null; error: any }> {
-    console.log('markProvinceMessagesAsRead called for:', provinceChatId, userId, lastMessageId);
-     if (!provinceChatId || !userId || !lastMessageId) {
-        return { data: null, error: { message: 'Province Chat ID, User ID, and Last Message ID are required' } };
+    if (!messageId) return { data: null, error: { message: 'Message ID is required' } };
+    
+    // Verify session before deleting
+    const { valid } = await checkSession();
+    if (!valid) {
+      console.error('[provinceChatService] deleteProvinceMessage - No valid session found');
+      return { data: null, error: { message: 'Authentication required to delete messages' } };
     }
     
-    // Update only the last_read_message_id
-    return handleSupabaseQuery<Pick<ProvinceChatMember, 'last_read_message_id'>[]>(
-        supabase.from('province_chat_members')
-            .update({ last_read_message_id: lastMessageId })
-            .match({ province_chat_id: provinceChatId, user_id: userId })
-            // Optionally select only the updated field to confirm
-            .select('last_read_message_id') 
+    return handleSupabaseQuery(
+      supabase
+        .from('province_messages')
+        .delete()
+        .eq('id', messageId),
+      `deleteProvinceMessage(${messageId})`
     );
   },
 
-  // --- Realtime Subscriptions (Placeholders) ---
   subscribeToNewProvinceMessages(provinceChatId: string, callback: (payload: RealtimePostgresChangesPayload<ProvinceMessage>) => void): RealtimeChannel | undefined {
-    console.log('Setting up subscription for new messages in:', provinceChatId);
-    // We need to enhance the payload with user details if the insert doesn't include it
-    // For simplicity now, the callback might need to fetch user details separately if not included in initial select of sendMessage
     return manageProvinceSubscription<ProvinceMessage>('province-messages', provinceChatId, 'province_messages', callback);
   },
 
   subscribeToMembershipUpdates(provinceChatId: string, callback: (payload: RealtimePostgresChangesPayload<ProvinceChatMember>) => void): RealtimeChannel | undefined {
-    console.log('Setting up subscription for membership updates in:', provinceChatId);
     return manageProvinceSubscription<ProvinceChatMember>('province-members', provinceChatId, 'province_chat_members', callback);
   },
 
   async unsubscribeFromProvinceChat(provinceChatId: string): Promise<void> {
-    console.log(`Unsubscribing from all channels for province chat: ${provinceChatId}`);
-    // Loop through channel keys looking for any related to this chat ID
-    const channelsToRemove: string[] = [];
-    
-    activeProvinceChannels.forEach((channel, key) => {
-        // Key format is like "prefix:provinceChatId"
-        if (key.endsWith(`:${provinceChatId}`)) {
-            channelsToRemove.push(key);
-            try {
-                channel.unsubscribe();
-                console.log(`Unsubscribed from channel: ${key}`);
-            } catch (error) {
-                console.error(`Error unsubscribing from channel ${key}:`, error);
-            }
-        }
-    });
-
-    // Remove the channels from the active map
-    channelsToRemove.forEach(key => {
-        activeProvinceChannels.delete(key);
-    });
-  },
-
-  // New function to unsubscribe from all active province chat channels
-  async unsubscribeFromAllProvinceChats(): Promise<void> {
-    console.log(`Unsubscribing from all active province chat channels (${activeProvinceChannels.size})...`);
-    
-    activeProvinceChannels.forEach((channel, key) => {
-      try {
-          channel.unsubscribe();
-          console.log(`Unsubscribed from channel: ${key}`);
-      } catch (error) {
-          console.error(`Error unsubscribing from channel ${key}:`, error);
+    try {
+      console.log(`[provinceChatService] Unsubscribing from chat ${provinceChatId}`);
+      const messageKey = `province-messages:${provinceChatId}`;
+      const memberKey = `province-members:${provinceChatId}`;
+      
+      if (activeProvinceChannels.has(messageKey)) {
+        const channel = activeProvinceChannels.get(messageKey);
+        await channel?.unsubscribe();
+        activeProvinceChannels.delete(messageKey);
+        console.log(`[provinceChatService] Unsubscribed from messages for ${provinceChatId}`);
       }
-    });
-
-    // Clear the map after attempting to unsubscribe from all
-    activeProvinceChannels.clear();
-    console.log('Cleared all active province chat channels.');
+      
+      if (activeProvinceChannels.has(memberKey)) {
+        const channel = activeProvinceChannels.get(memberKey);
+        await channel?.unsubscribe();
+        activeProvinceChannels.delete(memberKey);
+        console.log(`[provinceChatService] Unsubscribed from membership for ${provinceChatId}`);
+      }
+    } catch (error) {
+      console.error(`[provinceChatService] Error unsubscribing from chat ${provinceChatId}:`, error);
+    }
   },
 
-  // Example usage in AuthContext or similar on logout:
-  // await provinceChatService.unsubscribeFromAllProvinceChats();
+  async unsubscribeFromAllProvinceChats(): Promise<void> {
+    try {
+      console.log(`[provinceChatService] Unsubscribing from all province chats. Total channels: ${activeProvinceChannels.size}`);
+      
+      // Create a copy of the keys to avoid modification during iteration
+      const channelKeys = Array.from(activeProvinceChannels.keys());
+      
+      for (const key of channelKeys) {
+        try {
+          const channel = activeProvinceChannels.get(key);
+          if (channel) {
+            await channel.unsubscribe();
+            console.log(`[provinceChatService] Unsubscribed from channel: ${key}`);
+          }
+          activeProvinceChannels.delete(key);
+        } catch (e) {
+          console.error(`[provinceChatService] Error unsubscribing from ${key}:`, e);
+        }
+      }
+      
+      console.log('[provinceChatService] Finished unsubscribing from all channels');
+    } catch (error) {
+      console.error('[provinceChatService] Error in unsubscribeFromAllProvinceChats:', error);
+    }
+  }
 };
+
+// Remove duplicate exports from the end of the file if they existed

@@ -1,351 +1,465 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, Alert, Dimensions } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, FlatList, StatusBar, ActivityIndicator, Platform } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { provinceChatService } from '../../services/provinceChatService'; // Adjust path if needed
-import { Card, Button, useTheme, Paragraph, Title } from 'react-native-paper'; // Removed List, Divider
-import { useAuth } from '../../contexts/AuthContext'; // Import useAuth to get user ID
-import { MaterialCommunityIcons } from '@expo/vector-icons'; // For icons
-import SkeletonPlaceholder from "react-native-skeleton-placeholder"; // Import Skeleton Placeholder
+import { MainStackParamList } from '../../navigation/types';
+import { provinceChatService } from '../../services/provinceChatService';
+import { Card, Button, Searchbar, Avatar, Paragraph, useTheme, Surface, IconButton } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { TouchableOpacity } from 'react-native-gesture-handler';
+import Animated, { FadeInDown, FadeIn, SlideInRight } from 'react-native-reanimated';
+import { LottieWrapper } from '../../components/animations/LottieWrapper';
 
-// Define proper type for navigation
-type RootStackParamList = {
-  ProvinceList: { regionId: string, regionName?: string }; // Added regionName
-  ProvinceChatRoom: { provinceChatId: string, provinceName: string };
-};
+type ProvinceListRouteProp = RouteProp<MainStackParamList, 'ProvinceList'>;
+type ProvinceListNavigationProp = NativeStackNavigationProp<MainStackParamList, 'ProvinceList'>;
 
-type ProvinceListRouteProp = RouteProp<RootStackParamList, 'ProvinceList'>;
-
-// Define types based on our updated database schema
-interface Province {
+// Define ProvinceExtended interface that explicitly includes optional properties
+interface ProvinceData {
   id: string;
   name: string;
-  region_id?: string;
+  region_id: string;
   description?: string;
-  created_at?: string;
-  updated_at?: string;
 }
 
-interface ProvinceChat {
-  id: string;
-  name: string;
-  region_id?: string;
-  province_id?: string;
-  description?: string;
-  last_message_at?: string;
-  message_count?: number;
-  is_active?: boolean;
-  chat_type?: string;
-  created_at?: string;
-  updated_at?: string;
-  created_by?: string;
-}
+// Create animated component with proper typing to avoid TS errors
+const AnimatedCard = Animated.createAnimatedComponent(Card) as any;
 
-// Skeleton Component for Loading State
-const ProvinceCardSkeleton = () => {
+// Custom component for screen header
+const ScreenHeader = ({ title, onBackPress, onFilterPress }: { 
+  title: string; 
+  onBackPress: () => void;
+  onFilterPress?: () => void;
+}) => {
   const theme = useTheme();
   return (
-    <SkeletonPlaceholder 
-      borderRadius={theme.roundness * 2} // Match card border radius
-      backgroundColor={theme.colors.surfaceVariant} // Use a theme color for background
-      highlightColor={theme.colors.surface} // Use a theme color for highlight
+    <LinearGradient
+      colors={['#5D3FD3', '#7355DD']}
+      start={{x: 0, y: 0}}
+      end={{x: 1, y: 0}}
+      style={styles.headerSurface}
     >
-      <View style={styles.skeletonCard}>
-        <View style={styles.skeletonContent}>
-          <View style={{ width: '60%', height: 20, marginBottom: 8 }} />
-          <View style={{ width: '90%', height: 16, marginBottom: 4 }} />
-          <View style={{ width: '80%', height: 16 }} />
-        </View>
-        <View style={styles.skeletonActions}>
-          <View style={{ width: 100, height: 40, borderRadius: 20 }} />
-        </View>
-      </View>
-    </SkeletonPlaceholder>
+      <IconButton
+        icon="arrow-left"
+        iconColor={theme.colors.onPrimary}
+        size={24}
+        onPress={onBackPress}
+        style={styles.backButton}
+      />
+      <Text style={[styles.headerTitle, { color: '#fff' }]}>{title}</Text>
+      {onFilterPress && (
+        <IconButton
+          icon="tune"
+          iconColor={theme.colors.onPrimary}
+          size={24}
+          onPress={onFilterPress}
+          style={styles.filterButton}
+        />
+      )}
+    </LinearGradient>
   );
 };
 
 const ProvinceListScreen = () => {
-  const navigation = useNavigation<any>(); // Using any temporarily for navigation
-  const route = useRoute<ProvinceListRouteProp>(); // Use typed route
-  const theme = useTheme(); // Get theme
-  const { user } = useAuth(); // Get user info
-
+  const navigation = useNavigation<ProvinceListNavigationProp>();
+  const route = useRoute<ProvinceListRouteProp>();
+  const theme = useTheme();
+  
   // Extract regionId and regionName from route params
-  const regionId = route.params?.regionId;
-  const regionName = route.params?.regionName; // Use for context/title
-
-  // Set navigation title dynamically
-  useEffect(() => {
-      navigation.setOptions({ title: regionName ? `${regionName} Provinces` : 'Provinces' });
-  }, [navigation, regionName]);
-
-  const [provinces, setProvinces] = useState<Province[]>([]);
-  const [provinceChats, setProvinceChats] = useState<ProvinceChat[]>([]);
+  const { regionId, regionName } = route.params;
+  
+  // State variables
+  const [provinces, setProvinces] = useState<ProvinceData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [joiningChat, setJoiningChat] = useState<string | null>(null); // Track which chat is being joined
   const [error, setError] = useState<string | null>(null);
-
+  const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  
   // --- Data Fetching ---
-  const fetchData = useCallback(async () => { // Renamed and wrapped in useCallback
+  const fetchData = useCallback(async () => {
     if (!regionId) {
-      Alert.alert('Error', 'Region ID is missing. Cannot load provinces.');
+      setError('Region ID is missing.');
       setLoading(false);
-      setError('Missing Region ID');
       return;
     }
-
+    
     setLoading(true);
     setError(null);
     
     try {
-      // Fetch provinces for the region
-      const { data: provincesData, error: provincesError } = await provinceChatService.getProvincesByRegion(regionId);
+      const { data, error: fetchError } = await provinceChatService.getProvincesByRegion(regionId);
       
-      if (provincesError) {
-        throw new Error(provincesError.message || 'Failed to load provinces');
+      if (fetchError) {
+        console.error('Error fetching provinces:', fetchError);
+        setError(fetchError.message || 'Failed to load provinces.');
+      } else if (!data || data.length === 0) {
+        setProvinces([]);
+        // Set a friendly empty message instead of error
+      } else {
+        // Update the mapping to use the new interface
+        const typedProvinces: ProvinceData[] = data.map(item => ({
+          id: item.id || '',
+          name: item.name || '',
+          region_id: item.region_id || '',
+          description: item.description || undefined
+        }));
+        setProvinces(typedProvinces);
       }
-      
-      setProvinces(provincesData || []);
-      
-      // Also fetch province chats for the region
-      const { data: chatsData, error: chatsError } = await provinceChatService.getProvinceChatsByRegion(regionId);
-      
-      if (chatsError) {
-        throw new Error(chatsError.message || 'Failed to load province chats');
-      }
-      
-      setProvinceChats(chatsData || []);
-    } catch (err: any) {
-      console.error('Error fetching data:', err);
-      setError(err.message || 'Failed to load data');
-      // Keep alert for immediate feedback, but rely on error screen for retry
-      Alert.alert('Error', err.message || 'Could not load data'); 
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      setError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [regionId]); // Dependency: regionId
-
-  useEffect(() => {
-    fetchData(); // Call fetchData on mount and when regionId changes
+  }, [regionId]);
+  
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchData();
   }, [fetchData]);
-
-  // Helper function to find the chat for a province
-  const findChatForProvince = (provinceId: string): ProvinceChat | undefined => {
-    return provinceChats.find(chat => chat.province_id === provinceId);
+  
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+  
+  // --- Navigation Handlers ---
+  const handleBackPress = () => {
+    navigation.goBack();
   };
-
-  const handleProvincePress = async (province: Province) => {
-    if (!user) {
-      Alert.alert('Error', 'You must be logged in to join a chat.');
-      return;
-    }
+  
+  const handleProvincePress = (province: ProvinceData) => {
+    // Generate a predictable chat ID based on the province ID if needed
+    const chatId = province.id; // Or use another strategy to determine chat ID
     
-    // Find the corresponding chat for this province
-    const provinceChat = findChatForProvince(province.id);
-    
-    if (!provinceChat) {
-      // This case should ideally be prevented by disabling the button, but keep as fallback
-      Alert.alert('No Chat Available', `There is no active chat for ${province.name}.`);
-      return;
-    }
-    
-    if (joiningChat) return; // Prevent multiple join attempts
-
-    setJoiningChat(provinceChat.id);
-    console.log(`Attempting to join province chat: ${provinceChat.name} (${provinceChat.id}) for user: ${user.id}`);
-    
-    // Attempt to join the chat
-    const { error: joinError } = await provinceChatService.joinProvinceChat(provinceChat.id, user.id);
-    
-    setJoiningChat(null);
-    
-    if (joinError) {
-      console.error('Error joining province chat:', joinError);
-      Alert.alert('Error Joining Chat', joinError.message || 'Could not join the selected chat.');
-    } else {
-      console.log(`Successfully joined (or was already in) province chat: ${provinceChat.name}`);
-      // Navigate to the chat room screen after successful join
-      navigation.navigate('ProvinceChatRoom', { 
-        provinceChatId: provinceChat.id,
-        provinceName: province.name // Pass province name for title
-      });
-    }
+    // Navigate to the chat room with province details
+    // Use type assertion to prevent TypeScript error with the updated navigation params
+    navigation.navigate('ProvinceChatRoom', {
+      provinceChatId: chatId,
+      provinceName: province.name,
+      provinceId: province.id // Pass the province ID for proper chat room creation
+    } as any); // Type assertion needed until TypeScript recognizes the updated navigation type
   };
-
+  
+  // Filter provinces based on search query
+  const filteredProvinces = useMemo(() => {
+    return provinces.filter(province => 
+      province.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      province.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [provinces, searchQuery]);
+  
   // --- Render Loading State ---
-  if (loading) {
-    // Use FlatList to render multiple skeletons
+  if (loading && !refreshing) {
     return (
-      <View style={styles.container}>
-        <FlatList
-          data={Array(5).fill(0)} // Render 5 skeleton items
-          keyExtractor={(_, index) => `skeleton-${index}`}
-          renderItem={() => <ProvinceCardSkeleton />}
-          contentContainerStyle={styles.listContentContainer}
-        />
-      </View>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
+        <StatusBar backgroundColor="#5D3FD3" barStyle="light-content" />
+        <ScreenHeader title={regionName || 'Provinces'} onBackPress={handleBackPress} />
+        <View style={[styles.center, { backgroundColor: theme.colors.background }]}>
+          <LottieWrapper
+            source={require('../../../assets/animations/map-loading.json')}
+            icon="loading"
+            text="Discovering provinces..."
+            style={styles.lottieAnimation}
+          />
+        </View>
+      </SafeAreaView>
     );
   }
-
+  
   // --- Render Error State ---
-  if (error && !loading) { 
+  if (error && !loading) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <MaterialCommunityIcons name="alert-circle-outline" size={48} color={theme.colors.error} />
-        <Title style={[styles.errorTitle, { color: theme.colors.error }]}>Oops!</Title>
-        <Paragraph style={[styles.errorText, { color: theme.colors.onSurfaceVariant }]}>
-          {error}
-        </Paragraph>
-        <Button 
-          mode="contained" 
-          onPress={fetchData} // Use fetchData for retry
-          icon="reload"
-          style={styles.retryButton}
-        >
-          Retry
-        </Button>
-      </View>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
+        <StatusBar backgroundColor="#5D3FD3" barStyle="light-content" />
+        <ScreenHeader title={regionName || 'Provinces'} onBackPress={handleBackPress} />
+        <View style={[styles.center, { backgroundColor: theme.colors.background }]}>
+          <MaterialCommunityIcons 
+            name="map-marker-alert" 
+            size={80} 
+            color={theme.colors.error} 
+          />
+          <Text style={[styles.errorTitle, { color: theme.colors.error }]}>
+            Oops!
+          </Text>
+          <Paragraph style={[styles.errorText, { color: theme.colors.onSurfaceVariant }]}>
+            {error}
+          </Paragraph>
+          <Button 
+            mode="contained" 
+            onPress={fetchData}
+            icon="reload"
+            style={styles.retryButton}
+          >
+            Try Again
+          </Button>
+        </View>
+      </SafeAreaView>
     );
   }
-
+  
+  // --- Render Province Item ---
+  const renderProvinceItem = ({ item, index }: { item: ProvinceData, index: number }) => {
+    // Generate dynamic color based on name
+    const hue = (item.name.length * 25) % 360;
+    const cardColor = `hsl(${hue}, 70%, 45%)`;
+    
+    // Get first letter of province name for avatar
+    const provinceFirstLetter = item.name.charAt(0).toUpperCase();
+    
+    return (
+      <AnimatedCard 
+        style={styles.card}
+        entering={FadeInDown.delay(index * 100).duration(400)}
+      >
+        <TouchableOpacity 
+          activeOpacity={0.8}
+          onPress={() => handleProvincePress(item)}
+          style={styles.cardTouchable}
+          accessibilityRole="button"
+          accessibilityLabel={`${item.name} province`}
+          accessibilityHint={`Double tap to enter chat room for ${item.name}`}
+        >
+          <LinearGradient
+            colors={[cardColor, `${cardColor}99`]} 
+            start={{x: 0, y: 0}}
+            end={{x: 1, y: 1}}
+            style={styles.cardHeader}
+          >
+            <View style={styles.cardHeaderContent}>
+              <Avatar.Text 
+                label={provinceFirstLetter} 
+                size={40} 
+                style={styles.avatar}
+                labelStyle={styles.avatarText}
+              />
+              <Text style={styles.provinceName} numberOfLines={1}>
+                {item.name}
+              </Text>
+            </View>
+          </LinearGradient>
+          
+          <Card.Content style={styles.cardContent}>
+            {item.description ? (
+              <Paragraph style={styles.description}>
+                {item.description}
+              </Paragraph>
+            ) : (
+              <Paragraph style={styles.description}>
+                Chat with people from {item.name} province
+              </Paragraph>
+            )}
+          </Card.Content>
+          
+          <Card.Actions style={styles.cardActions}>
+            <Button 
+              mode="contained-tonal" 
+              icon="chat" 
+              onPress={() => handleProvincePress(item)}
+              style={styles.chatButton}
+              labelStyle={styles.buttonLabel}
+            >
+              Join Chat
+            </Button>
+          </Card.Actions>
+        </TouchableOpacity>
+      </AnimatedCard>
+    );
+  };
+  
   // --- Render Province List ---
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
+      <StatusBar backgroundColor="#5D3FD3" barStyle="light-content" />
+      
+      {/* Header */}
+      <Animated.View entering={FadeIn.duration(300)}>
+        <ScreenHeader 
+          title={regionName || 'Provinces'} 
+          onBackPress={handleBackPress} 
+          onFilterPress={() => {/* Add filter functionality */}}
+        />
+      </Animated.View>
+      
+      {/* Search bar */}
+      <Animated.View entering={SlideInRight.delay(200).duration(400)}>
+        <Searchbar
+          placeholder="Search provinces..."
+          onChangeText={setSearchQuery}
+          value={searchQuery}
+          style={styles.searchbar}
+          iconColor={theme.colors.primary}
+          clearIcon="close-circle"
+        />
+      </Animated.View>
+      
+      {/* Province List */}
       <FlatList
-        data={provinces}
+        data={filteredProvinces}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContentContainer} // Add padding
-        renderItem={({ item }) => {
-          const chat = findChatForProvince(item.id);
-          const chatAvailable = !!chat;
-          const isJoiningThisChat = joiningChat === chat?.id;
-
-          return (
-            <Card 
-              style={[
-                styles.card, 
-                !chatAvailable && styles.disabledCard,
-                { backgroundColor: theme.colors.surface } 
-              ]}
-              elevation={chatAvailable ? 2 : 0} // Lower elevation for disabled
-            >
-              <Card.Title 
-                title={item.name} 
-                titleStyle={styles.cardTitle}
-                // Optional: Add a subtitle or left icon
-                // subtitle={item.description} 
-                // left={(props) => <Avatar.Icon {...props} icon="map-marker" />}
-              />
-              <Card.Content>
-                <Paragraph style={styles.cardDescription}>
-                  {chatAvailable 
-                    ? item.description || `Join the chat for ${item.name}` 
-                    : 'No public chat currently available for this province.'}
-                </Paragraph>
-              </Card.Content>
-              {chatAvailable && chat && ( // Only show actions if chat exists
-                <Card.Actions style={styles.cardActions}>
-                  <Button 
-                    mode="contained" 
-                    icon="arrow-right" 
-                    onPress={() => handleProvincePress(item)}
-                    disabled={isJoiningThisChat}
-                    loading={isJoiningThisChat}
-                    style={styles.joinButton}
-                  >
-                    {isJoiningThisChat ? 'Joining...' : 'Join Chat'}
-                  </Button>
-                </Card.Actions>
-              )}
-            </Card>
-          );
-        }}
-        // ItemSeparatorComponent={() => <View style={styles.separator} />} // Use padding instead
+        contentContainerStyle={styles.listContentContainer}
+        renderItem={renderProvinceItem}
+        onRefresh={handleRefresh}
+        refreshing={refreshing}
         ListEmptyComponent={() => (
-          <View style={[styles.center, { paddingTop: 50 }]}>
-            <MaterialCommunityIcons name="map-marker-off-outline" size={48} color={theme.colors.onSurfaceVariant} />
-            <Paragraph style={{ color: theme.colors.onSurfaceVariant, marginTop: 10 }}>
-              No provinces found for {regionName || 'this region'}.
+          <View style={[styles.center, { paddingTop: 50, backgroundColor: theme.colors.background }]}>
+            <MaterialCommunityIcons 
+              name="map-search" 
+              size={80} 
+              color={theme.colors.onSurfaceVariant} 
+            />
+            <Paragraph style={{ color: theme.colors.onSurfaceVariant, marginTop: 16, textAlign: 'center' }}>
+              {searchQuery 
+                ? `No provinces match "${searchQuery}"`
+                : 'No provinces available for this region'}
             </Paragraph>
+            <Button 
+              mode="outlined"
+              style={{ marginTop: 16 }}
+              icon="refresh"
+              onPress={fetchData}
+            >
+              Refresh
+            </Button>
           </View>
         )}
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
-// --- Styles ---
+// --- Enhanced Styles ---
 const styles = StyleSheet.create({
+  avatar: {
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    marginRight: 12,
+  },
+  avatarText: {
+    fontWeight: 'bold',
+  },
+  backButton: {
+    position: 'absolute',
+    left: 8,
+  },
+  buttonLabel: {
+    fontWeight: 'bold',
+  },
+  card: {
+    borderRadius: 16,
+    elevation: 3,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  cardActions: {
+    justifyContent: 'flex-end',
+    paddingBottom: 16,
+    paddingRight: 16,
+  },
+  cardContent: {
+    paddingBottom: 8,
+    paddingTop: 16,
+  },
+  cardHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  cardHeaderContent: {
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  cardTouchable: {
+    overflow: 'hidden',
+  },
+  center: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 20,
+  },
+  chatButton: {
+    borderRadius: 8,
+  },
   container: {
     flex: 1,
   },
-  center: {
-    flex: 1, 
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-  },
-  errorTitle: {
-    marginTop: 16,
+  description: {
+    fontSize: 14,
+    lineHeight: 20,
     marginBottom: 8,
   },
   errorText: {
-    textAlign: 'center',
-    marginBottom: 20,
     fontSize: 16,
+    marginBottom: 20,
+    marginTop: 8,
+    maxWidth: 300,
+    textAlign: 'center',
   },
-  retryButton: {
-    marginTop: 10,
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginTop: 16,
+  },
+  filterButton: {
+    position: 'absolute',
+    right: 8,
+  },
+  headerSurface: {
+    padding: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   listContentContainer: {
-    padding: 8, // Add padding around the list
-  },
-  card: {
-    marginVertical: 8, // Vertical spacing between cards
-    marginHorizontal: 4, // Horizontal spacing from screen edges
-  },
-  disabledCard: {
-    opacity: 0.7,
-    // backgroundColor: '#f0f0f0', // Example: different background
-  },
-  cardTitle: {
-    fontWeight: 'bold', // Keep title bold
-  },
-  cardDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  cardActions: {
-    justifyContent: 'flex-end', // Align button to the right
-    paddingRight: 8, // Add some padding for the button
-    paddingBottom: 8,
-  },
-  joinButton: {
-    // Add specific styles if needed
-  },
-  // separator: { // Alternative to padding for separation
-  //   height: 10,
-  // },
-
-  // --- Skeleton Styles ---
-  skeletonCard: {
-    marginVertical: 8,
-    marginHorizontal: 4,
-    borderRadius: 12, // Should ideally match Card's border radius if possible
     padding: 16,
-    height: 150, // Approximate height of a card
-    flexDirection: 'column',
-    justifyContent: 'space-between',
+    paddingBottom: 100, // Extra padding at bottom for better scrolling
   },
-  skeletonContent: {
-    // Styles for the top part (title, description)
+  loadingText: {
+    fontSize: 18,
+    fontWeight: '500',
+    marginTop: 20,
   },
-  skeletonActions: {
-    alignItems: 'flex-end', // Match card action alignment
+  lottieAnimation: {
+    height: 200,
+    width: 200,
+  },
+  populationContainer: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginTop: 6,
+  },
+  populationText: {
+    marginLeft: 5,
+  },
+  provinceName: {
+    color: '#fff',
+    flex: 1,
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  retryButton: {
+    marginTop: 20,
+    paddingHorizontal: 24,
+  },
+  searchbar: {
+    borderRadius: 12,
+    elevation: 2,
+    margin: 16,
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  webLoadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
-export default ProvinceListScreen; 
+export default ProvinceListScreen;

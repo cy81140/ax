@@ -11,8 +11,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
  * Contains the top-level navigation paths including nested navigators
  */
 export type RootStackParamList = {
-  Auth: NavigatorScreenParams<AuthStackParamList>; // Use NavigatorScreenParams for nested stacks
-  Main: NavigatorScreenParams<MainTabParamList>;
+  Auth: NavigatorScreenParams<AuthStackParamList>; 
+  Main: NavigatorScreenParams<MainStackParamList>;
   Admin: NavigatorScreenParams<AdminStackParamList>;
 };
 
@@ -23,6 +23,8 @@ export type RootStackParamList = {
 export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
+  TermsOfService: undefined;
+  PrivacyPolicy: undefined;
   ForgotPassword: undefined;
 };
 
@@ -31,12 +33,32 @@ export type AuthStackParamList = {
  * Contains all the tabs in the main bottom tab navigation
  */
 export type MainTabParamList = {
-  Home: NavigatorScreenParams<HomeStackParamList>; // Nested Home stack
-  Chat: NavigatorScreenParams<ProvinceChatStackParamList>; // Nested Province Chat stack
-  Create: undefined; // Assuming Create is a single screen
-  Search: undefined; // Assuming Search is a single screen
-  Activity: undefined; // Assuming Activity is a single screen
-  ProfileTab: NavigatorScreenParams<ProfileStackParamList>; // Nested Profile stack
+  Home: undefined;
+  Create: undefined;
+  Chats: undefined;
+  Activity: undefined;
+  ProfileTab: undefined;
+};
+
+/**
+ * Main Stack Parameter List
+ * Contains all screens accessible from the Main navigator
+ */
+export type MainStackParamList = {
+  MainTabs: undefined; // Main tabs navigator
+  RegionList: undefined;
+  ProvinceList: { regionId: string; regionName: string };
+  ProvinceChatRoom: { provinceChatId: string; provinceName: string; provinceId?: string };
+  Settings: undefined;
+  Profile: undefined;
+  EditProfile: undefined;
+  MutedUsers: undefined;
+  Reports: undefined;
+  AdminPanel: undefined;
+  PostDetails: { postId: string; commentId?: string };
+  TermsOfService: undefined;
+  PrivacyPolicy: undefined;
+  Debug: undefined;
 };
 
 /**
@@ -70,7 +92,7 @@ export type ProvinceChatStackParamList = {
   RegionList: undefined;
   ProvinceList: { regionId: string; regionName?: string };
   MyProvinceChats: undefined; // Screen to list chats user is in
-  ProvinceChatRoom: { provinceChatId: string; provinceName: string };
+  ProvinceChatRoom: { provinceChatId: string; provinceName: string; provinceId?: string };
 };
 
 /**
@@ -82,6 +104,8 @@ export type ProfileStackParamList = {
   EditProfile: undefined;
   Settings: undefined;
   MutedUsers: undefined;
+  TermsOfService: undefined;
+  PrivacyPolicy: undefined;
 };
 
 /**
@@ -95,28 +119,6 @@ export type AdminStackParamList = {
   ContentModeration: undefined;
   Analytics: undefined;
   Database: undefined;
-};
-
-/**
- * Main Stack Parameter List
- * Contains all main screens for reference in other components
- */
-export type MainStackParamList = {
-  Home: undefined;
-  Profile: { userId?: string };
-  PostDetails: { postId: string; commentId?: string };
-  CreatePost: undefined;
-  EditProfile: undefined;
-  Search: undefined;
-  Notifications: undefined;
-  Settings: undefined;
-  AdminPanel: undefined;
-  ChatRoom: { 
-    roomId: string; 
-    roomName: string;
-    roomDescription?: string;
-    regionName?: string;
-  };
 };
 
 // Screen props types for consuming in components

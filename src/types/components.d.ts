@@ -2,21 +2,23 @@
  * Types for component props used throughout the application
  */
 
+import { ImageSourcePropType, StyleProp, ViewStyle, TextStyle } from 'react-native';
+
 export interface AvatarTextProps {
   size: number;
   label: string;
   color?: string;
-  style?: any;
+  style?: StyleProp<TextStyle>;
 }
 
 export interface AvatarImageProps {
   size: number;
-  source: any;
-  style?: any;
+  source: ImageSourcePropType;
+  style?: StyleProp<ViewStyle>;
 }
 
 export interface ListIconProps {
   color?: string;
-  style?: any;
+  style?: StyleProp<ViewStyle>;
   icon: string;
 } 

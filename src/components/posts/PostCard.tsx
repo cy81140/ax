@@ -146,97 +146,97 @@ export const PostCard: React.FC<PostCardProps> = ({
 };
 
 const styles = StyleSheet.create({
-  card: {
-    marginVertical: 8,
-    marginHorizontal: 0,
-    overflow: 'hidden',
+  action: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flex: 1,
+    justifyContent: 'center',
+    paddingVertical: 8,
   },
-  desktopCard: {
-    maxWidth: 800,
-    alignSelf: 'center',
+  actionText: {
+    color: '#666',
+    fontSize: getResponsiveFontSize(14),
+    marginLeft: 4,
+  },
+  actions: {
+    borderTopColor: '#f0f0f0',
+    borderTopWidth: 1,
+    padding: 0,
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
     width: '100%',
   },
-  webCard: {
-    shadowRadius: 4,
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
+  activeAction: {
+    color: '#4A90E2',
+  },
+  card: {
+    marginHorizontal: 0,
+    marginVertical: 8,
+    overflow: 'hidden',
   },
   cardContent: {
     padding: 16,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  userInfo: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  username: {
-    fontWeight: 'bold',
+  content: {
     fontSize: getResponsiveFontSize(16),
+    lineHeight: 22,
+    marginBottom: 12,
   },
   date: {
     color: '#666',
     fontSize: getResponsiveFontSize(12),
   },
-  content: {
-    fontSize: getResponsiveFontSize(16),
-    marginBottom: 12,
-    lineHeight: 22,
+  desktopCard: {
+    alignSelf: 'center',
+    maxWidth: 800,
+    width: '100%',
   },
   desktopContent: {
     fontSize: getResponsiveFontSize(18),
     lineHeight: 26,
   },
-  imageContainer: {
-    marginVertical: 12,
-    borderRadius: 8,
-    overflow: 'hidden',
+  header: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginBottom: 12,
   },
   image: {
-    width: '100%',
-    height: 250,
     backgroundColor: '#f0f0f0',
+    height: 250,
+    width: '100%',
+  },
+  imageContainer: {
+    borderRadius: 8,
+    marginVertical: 12,
+    overflow: 'hidden',
+  },
+  stat: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginRight: 16,
+  },
+  statText: {
+    color: '#666',
+    fontSize: getResponsiveFontSize(14),
+    marginLeft: 4,
   },
   stats: {
     flexDirection: 'row',
     marginTop: 12,
   },
-  stat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  statText: {
-    marginLeft: 4,
-    fontSize: getResponsiveFontSize(14),
-    color: '#666',
-  },
-  actions: {
-    padding: 0,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-  },
-  actionsContainer: {
-    flexDirection: 'row',
-    width: '100%',
-    justifyContent: 'space-around',
-  },
-  action: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
+  userInfo: {
     flex: 1,
+    marginLeft: 12,
   },
-  actionText: {
-    marginLeft: 4,
-    fontSize: getResponsiveFontSize(14),
-    color: '#666',
+  username: {
+    fontSize: getResponsiveFontSize(16),
+    fontWeight: 'bold',
   },
-  activeAction: {
-    color: '#4A90E2',
+  webCard: {
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
 }); 

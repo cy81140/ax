@@ -1,52 +1,55 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, FlatList, ScrollView } from 'react-native';
-import { Text, TextInput, Button, useTheme, ActivityIndicator, Card, Surface, Divider, List, Avatar } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { Text, Surface, ActivityIndicator, Button, Card, Avatar, TextInput, useTheme, Divider, IconButton } from 'react-native-paper';
+import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
+import { MainStackParamList } from '../../navigation/types';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { CommentList } from '../../components/comments/CommentList';
+import { postService } from '../../services/posts';
+import { commentService } from '../../services/comments';
 import { useAuth } from '../../contexts/AuthContext';
-import { Post, Comment } from '../../types/services';
-import { postService } from '../../services/post';
-import { getCommentsByPostId } from '../../services/database';
-import { HomeStackScreenProps } from '../../navigation/types';
-import { PostActions } from '../../components/posts/PostActions';
-import { useResponsive } from '../../hooks/useResponsive';
-import { ResponsiveView } from '../../components/ui/ResponsiveView';
-import { getResponsiveSpacing } from '../../styles/responsive';
 import { formatDistanceToNow } from 'date-fns';
+import { Comment, Post } from '../../types/services';
 
-type ListItemProps = { color: string; style?: any };
+// Define the route prop type
+type PostDetailsRouteProp = RouteProp<MainStackParamList, 'PostDetails'>;
 
-type Props = HomeStackScreenProps<'PostDetails'>;
-
-export const PostDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
-  const { postId } = route.params;
+const PostDetailsScreen = () => {
+  const route = useRoute<PostDetailsRouteProp>();
+  const navigation = useNavigation();
   const theme = useTheme();
   const { user } = useAuth();
+  
+  // Extract parameters
+  const { postId, commentId } = route.params;
+  
   const [post, setPost] = useState<Post | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
-  const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
+  const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isLiked, setIsLiked] = useState(false);
-  const { isDesktop, isWeb } = useResponsive();
+  const [likeCount, setLikeCount] = useState(0);
 
   useEffect(() => {
-    fetchPost();
+    fetchPostDetails();
     fetchComments();
-  }, [postId]);
+    if (user) {
+      checkLikeStatus();
+    }
+  }, [postId, user]);
 
-  const fetchPost = async () => {
+  const fetchPostDetails = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      const fetchedPost = await postService.getPost(postId);
-      setPost(fetchedPost);
-      if (user && fetchedPost) {
-        const likedStatus = await postService.isLiked(fetchedPost.id, user.id);
-        setIsLiked(likedStatus);
+      const { data, error } = await postService.getPost(postId);
+      if (error) {
+        console.error('Error fetching post:', error);
+        return;
       }
+      setPost(data);
+      setLikeCount(data?.likes_count || 0);
     } catch (error) {
-      console.error('Error fetching post:', error);
-      setError('Failed to load post');
+      console.error('Error fetching post details:', error);
     } finally {
       setLoading(false);
     }
@@ -54,252 +57,288 @@ export const PostDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const fetchComments = async () => {
     try {
-      setError(null);
-      const response = await getCommentsByPostId(postId);
-      if (response.data) {
-        setComments(response.data);
+      const { data, error } = await commentService.getCommentsByPostId(postId);
+      if (error) {
+        console.error('Error fetching comments:', error);
+        return;
+      }
+      setComments(data || []);
+      
+      // If a specific comment was targeted, scroll to it
+      if (commentId && data) {
+        const targetComment = data.find((comment: Comment) => comment.id === commentId);
+        if (targetComment) {
+          // Implement scrolling to the specific comment
+          // This would require a ref and scrollToIndex in a FlatList
+        }
       }
     } catch (error) {
       console.error('Error fetching comments:', error);
-      setError('Failed to load comments');
     }
   };
 
-  const handleComment = async () => {
-    if (!user || !newComment.trim()) return;
-
+  const checkLikeStatus = async () => {
+    if (!user) return;
+    
     try {
-      setSubmitting(true);
-      setError(null);
-      await postService.createComment({
-        post_id: postId,
-        user_id: user.id,
-        text: newComment.trim(),
-      });
-      setNewComment('');
-      await fetchComments();
+      const { data } = await postService.isLikedByUser(postId, user.id);
+      setIsLiked(data);
     } catch (error) {
-      console.error('Error creating comment:', error);
-      setError('Failed to post comment. Please try again.');
+      console.error('Error checking like status:', error);
+    }
+  };
+
+  const handleLikePress = async () => {
+    if (!user) return;
+    
+    try {
+      if (isLiked) {
+        await postService.unlikePost(postId, user.id);
+        setLikeCount((prev: number) => Math.max(0, prev - 1));
+      } else {
+        await postService.likePost(postId, user.id);
+        setLikeCount((prev: number) => prev + 1);
+      }
+      setIsLiked(!isLiked);
+    } catch (error) {
+      console.error('Error toggling like:', error);
+    }
+  };
+
+  const handleSubmitComment = async () => {
+    if (!user || !commentText.trim() || submitting) return;
+    
+    setSubmitting(true);
+    try {
+      const { data, error } = await commentService.createComment(postId, user.id, commentText.trim());
+      if (error) {
+        console.error('Error creating comment:', error);
+        return;
+      }
+      
+      // Add the new comment to the list
+      if (data) {
+        setComments(prev => [
+          ...prev, 
+          {
+            ...data[0],
+            user: {
+              username: user.username,
+              profile_picture: user.profile_picture
+            },
+            likes_count: 0
+          }
+        ]);
+        setCommentText('');
+      }
+    } catch (error) {
+      console.error('Error submitting comment:', error);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleLike = async () => {
-    if (!user || !post) return;
-
-    const originalLikedState = isLiked;
-    setIsLiked(!originalLikedState);
-
-    try {
-      if (originalLikedState) {
-        await postService.unlikePost(post.id, user.id);
-      } else {
-        await postService.likePost(post.id, user.id);
-      }
-    } catch (error) {
-      console.error('Error toggling like:', error);
-      setIsLiked(originalLikedState);
-      setError('Failed to update like status.');
-    }
-  };
-
-  const handleShare = () => {
-    console.log('Share action triggered');
-  };
-
   if (loading) {
     return (
-      <Surface style={[styles.centerContainer, { backgroundColor: theme.colors.background }]}>
-        <ActivityIndicator size="large" animating={true} color={theme.colors.primary} />
+      <Surface style={styles.loadingContainer}>
+        <ActivityIndicator size="large" />
       </Surface>
     );
   }
 
-  if (error || !post) {
+  if (!post) {
     return (
-      <Surface style={[styles.centerContainer, { backgroundColor: theme.colors.background }]}>
-        <Text variant="titleMedium" style={{ color: theme.colors.error }}>
-          {error || 'Post not found.'}
-        </Text>
-        <Button onPress={fetchPost} style={{ marginTop: 16 }}>Retry</Button>
+      <Surface style={styles.container}>
+        <Text variant="headlineSmall" style={styles.errorText}>Post not found</Text>
+        <Button mode="contained" onPress={() => navigation.goBack()} style={styles.button}>
+          Go Back
+        </Button>
       </Surface>
     );
   }
-
-  const postTimeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
-
-  const renderComment = ({ item }: { item: Comment }) => {
-    const commentTimeAgo = formatDistanceToNow(new Date(item.created_at), { addSuffix: true });
-    return (
-      <List.Item
-        title={item.user?.username || 'Unknown User'}
-        description={item.text}
-        titleStyle={{ color: theme.colors.primary, fontWeight: 'bold' }}
-        descriptionStyle={{ color: theme.colors.onSurface }}
-        descriptionNumberOfLines={10}
-        left={(props: ListItemProps) => (
-          item.user?.profile_picture
-          ? <Avatar.Image {...props} source={{ uri: item.user.profile_picture }} size={32} style={styles.commentAvatar} />
-          : <Avatar.Icon {...props} icon="account" size={32} style={styles.commentAvatar} />
-        )}
-        style={styles.commentContainer}
-      />
-    );
-  };
 
   return (
-    <ResponsiveView
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-      desktopStyle={styles.desktopContainer}
-      webStyle={styles.webContainer}
+    <KeyboardAvoidingView
+      style={styles.keyboardView}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
     >
-      <FlatList
-        data={comments}
-        renderItem={renderComment}
-        keyExtractor={(item) => item.id}
-        style={styles.listStyle}
-        contentContainerStyle={isDesktop ? styles.desktopContentContainer : styles.mobileContentContainer}
-        ListHeaderComponent={(
+      <Surface style={styles.container}>
+        <ScrollView contentContainerStyle={styles.contentContainer}>
           <Card style={styles.postCard}>
             <Card.Title
-              title={post.user?.username}
-              titleVariant="titleMedium"
-              subtitle={postTimeAgo}
-              subtitleVariant="bodySmall"
+              title={post.user?.username || 'Unknown User'}
+              subtitle={formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
               left={(props: any) => (
-                post.user?.profile_picture
-                ? <Avatar.Image {...props} source={{ uri: post.user.profile_picture }} size={40} />
-                : <Avatar.Icon {...props} icon="account" size={40} />
+                <Avatar.Image
+                  {...props}
+                  source={{ uri: post.user?.profile_picture || 'https://via.placeholder.com/40' }}
+                  size={40}
+                />
               )}
             />
             <Card.Content>
-              <Text variant="bodyLarge" style={styles.content}>
-                {post.content}
-              </Text>
+              <Text style={styles.postContent}>{post.content}</Text>
               {post.image_url && (
-                <Card.Cover
-                  source={{ uri: post.image_url }}
-                  style={styles.image}
-                />
+                <Card.Cover source={{ uri: post.image_url }} style={styles.postImage} />
               )}
+              
+              <View style={styles.postStats}>
+                <View style={styles.postStat}>
+                  <MaterialCommunityIcons
+                    name="heart"
+                    size={16}
+                    color={theme.colors.primary}
+                  />
+                  <Text style={styles.postStatText}>
+                    {likeCount} likes
+                  </Text>
+                </View>
+                <Text style={styles.postStatText}>
+                  {comments.length} comments
+                </Text>
+              </View>
             </Card.Content>
-            <PostActions
-              post={post}
-              onLike={handleLike}
-              onComment={() => { }}
-              onShare={handleShare}
-              isLiked={isLiked}
-            />
-            <Divider style={styles.divider} />
-            <View style={styles.commentInputContainer}>
-              <TextInput
-                mode="outlined"
-                value={newComment}
-                onChangeText={setNewComment}
-                placeholder="Write a comment..."
-                style={styles.commentInput}
-                maxLength={500}
-                multiline
-                disabled={submitting}
-              />
-              <Button
-                mode="contained"
-                compact
-                onPress={handleComment}
-                disabled={!newComment.trim() || submitting}
-                loading={submitting}
-                style={styles.commentButton}
-                icon="send"
+            
+            <Divider />
+            
+            <Card.Actions style={styles.postActions}>
+              <Button 
+                icon={isLiked ? "heart" : "heart-outline"}
+                mode="text"
+                onPress={handleLikePress}
+                textColor={isLiked ? theme.colors.error : theme.colors.onSurface}
+                labelStyle={styles.actionLabel}
               >
-                Post
+                Like
               </Button>
-            </View>
-            <Text variant="titleMedium" style={styles.commentsHeader}>Comments</Text>
+              <Button 
+                icon="comment-outline"
+                mode="text"
+                onPress={() => {}}
+                labelStyle={styles.actionLabel}
+              >
+                Comment
+              </Button>
+              <Button 
+                icon="share-outline"
+                mode="text"
+                onPress={() => {}}
+                labelStyle={styles.actionLabel}
+              >
+                Share
+              </Button>
+            </Card.Actions>
           </Card>
-        )}
-        ListEmptyComponent={(
-          !loading ? (
-            <View style={styles.emptyCommentsContainer}>
-              <Text variant="bodyMedium" style={{color: theme.colors.onSurfaceVariant}}>No comments yet.</Text>
-            </View>
-          ) : null
-        )}
-      />
-    </ResponsiveView>
+          
+          <View style={styles.commentsContainer}>
+            <CommentList comments={comments} scrollable={false} />
+          </View>
+        </ScrollView>
+        
+        <View style={styles.commentInputContainer}>
+          <Avatar.Image
+            size={36}
+            source={{ uri: user?.profile_picture || 'https://via.placeholder.com/36' }}
+            style={styles.commentInputAvatar}
+          />
+          <TextInput
+            style={styles.commentInput}
+            placeholder="Write a comment..."
+            value={commentText}
+            onChangeText={setCommentText}
+            mode="outlined"
+            right={
+              <TextInput.Icon 
+                icon="send" 
+                onPress={handleSubmitComment}
+                disabled={!commentText.trim() || submitting}
+              />
+            }
+          />
+        </View>
+      </Surface>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  actionLabel: {
+    fontSize: 14,
+    marginLeft: 4,
   },
-  listStyle: {
-    flex: 1,
-  },
-  mobileContentContainer: {
-    paddingBottom: 32,
-  },
-  desktopContainer: {
-    maxWidth: 1000,
-    alignSelf: 'center',
-    width: '100%',
-  },
-  webContainer: {
-  },
-  desktopContentContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 32,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  postCard: {
-    marginBottom: 8,
-  },
-  content: {
-    marginBottom: 12,
-  },
-  image: {
-    marginTop: 12,
-  },
-  commentsHeader: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  commentContainer: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  commentAvatar: {
-    marginRight: 12,
-    alignSelf: 'flex-start',
-    marginTop: 4,
-  },
-  commentInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderTopWidth: StyleSheet.hairlineWidth,
+  button: {
+    marginTop: 16,
   },
   commentInput: {
     flex: 1,
+    marginLeft: 8,
+  },
+  commentInputAvatar: {
     marginRight: 8,
   },
-  commentButton: {
-  },
-  emptyCommentsContainer: {
-    padding: 16,
+  commentInputContainer: {
     alignItems: 'center',
+    backgroundColor: '#fff',
+    borderTopColor: '#eee',
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    padding: 8,
+    width: '100%',
   },
-  divider: {
-    marginTop: 8,
-  }
+  commentsContainer: {
+    flex: 1,
+    marginTop: 16,
+  },
+  container: {
+    flex: 1,
+  },
+  contentContainer: {
+    flexGrow: 1,
+    padding: 16,
+  },
+  errorText: {
+    margin: 16,
+    textAlign: 'center',
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  postActions: {
+    justifyContent: 'space-around',
+    paddingHorizontal: 8,
+  },
+  postCard: {
+    marginBottom: 16,
+  },
+  postContent: {
+    fontSize: 16,
+    marginBottom: 12,
+  },
+  postImage: {
+    borderRadius: 8,
+    height: 200,
+    marginVertical: 8,
+  },
+  postStat: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginRight: 16,
+  },
+  postStats: {
+    flexDirection: 'row',
+    marginTop: 12,
+  },
+  postStatText: {
+    color: '#666',
+    fontSize: 14,
+    marginLeft: 4,
+  },
 });
 
 export default PostDetailsScreen; 
